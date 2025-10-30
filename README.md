@@ -38,20 +38,43 @@ npm run dev
 **Telegram:** Habla con [@BotFather](https://t.me/botfather) → `/newbot`  
 **OpenAI:** [platform.openai.com](https://platform.openai.com/) → API Keys
 
-## 📁 Estructura
+## 📁 Estructura del Proyecto
 
 ```
-src/
-├── index.ts              # Punto de entrada
-└── modules/
-    ├── TelegramBot.ts        # Bot de Telegram
-    ├── VisionProcessor.ts    # GPT-4 Vision (Opción A)
-    ├── DocumentIngestor.ts   # Gestión de archivos
-    ├── DataStructures.ts     # Formateo y logging
-    ├── Interfaces.ts         # Schemas Zod + Types
-    ├── ExcelGenerator.ts     # Generador de archivos Excel
-    └── SessionManager.ts     # Gestión de sesiones de usuario
+IA Telegram Bot/
+├── src/
+│   ├── index.ts                    # 🚀 Punto de entrada principal
+│   └── modules/
+│       ├── DataStructures.ts       # 📝 Formateo y logging (helpers)
+│       ├── DocumentIngestor.ts     # 📥 Gestión de archivos (descarga, validación)
+│       ├── ExcelGenerator.ts       # 📊 Generador de Excel (formato profesional)
+│       ├── Interfaces.ts           # 🔧 Schemas Zod + TypeScript Types
+│       ├── SessionManager.ts       # 💾 Gestión de sesiones (acumulación de facturas)
+│       ├── TelegramBot.ts          # 🤖 Bot de Telegram (comandos, handlers, callbacks)
+│       └── VisionProcessor.ts      # 👁️ GPT-4 Vision (procesamiento de imágenes/docs)
+├── temp/                           # 📁 Almacenamiento temporal de archivos
+├── dist/                           # 📦 Compilado de TypeScript
+├── node_modules/                   # 📚 Dependencias
+├── .env                            # 🔐 Variables de entorno (NO INCLUIR EN GIT)
+├── .gitignore                      # 🚫 Archivos ignorados por Git
+├── package.json                    # 📋 Configuración de dependencias
+├── tsconfig.json                   # ⚙️ Configuración de TypeScript
+├── README.md                       # 📖 Documentación principal
+├── Structure.md                    # 🏗️ Arquitectura detallada
+└── ARCHITECTURE_BRIEF.md          # 📐 Brief técnico completo
 ```
+
+### 🔍 Descripción de Módulos Principales
+
+| Módulo | Responsabilidad | Líneas |
+|--------|----------------|--------|
+| **DataStructures.ts** | Clases helper (InvoiceResponse, ProcessingResultFormatter, Logger), formateo de mensajes | ~313 |
+| **DocumentIngestor.ts** | Descarga de archivos desde Telegram, validación por magic bytes, limpieza temporal | ~383 |
+| **ExcelGenerator.ts** | Generación de archivos Excel con formato profesional (headers azules, bordes, formato moneda) | ~288 |
+| **Interfaces.ts** | Schemas Zod para validación, tipos TypeScript, contratos de datos | ~140 |
+| **SessionManager.ts** | Gestión de sesiones de usuario, acumulación de facturas, limpieza automática (timeout 30min) | ~176 |
+| **TelegramBot.ts** | Manejo de conexión, comandos (/start, /help, /facturas), handlers de mensajes (foto, documento), callbacks de botones (descargar Excel, limpiar) | ~602 |
+| **VisionProcessor.ts** | Integración con GPT-4 Vision API, prompt engineering, extracción de datos de imágenes/PDFs | ~314 |
 
 ## 📊 Datos Extraídos
 
