@@ -1,0 +1,39 @@
+{
+  "name": "ia-telegram-bot",
+  "version": "1.0.0",
+  "description": "Bot de Telegram con IA para procesamiento de comprobantes y facturas",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "dev:nodemon": "nodemon --exec tsx src/index.ts"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "ai",
+    "invoice",
+    "ocr",
+    "vision"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "telegraf": "^4.16.3",
+    "openai": "^4.67.3",
+    "zod": "^3.23.8",
+    "axios": "^1.7.9",
+    "fs-extra": "^11.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.2",
+    "@types/fs-extra": "^11.0.4",
+    "concurrently": "^9.2.1",
+    "nodemon": "^3.1.10",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}
