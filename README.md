@@ -15,28 +15,7 @@ Bot de Telegram con IA que extrae datos estructurados de facturas y comprobantes
 - 🔐 Eliminación automática de archivos
 - 🌍 Multi-moneda (ARS, USD, EUR, BRL, CLP, MXN, COP)
 
-## 🚀 Instalación
 
-```bash
-# 1. Instalar dependencias
-npm install
-
-# 2. Crear archivo .env basado en env.example
-cp env.example .env
-
-# 3. Editar .env con tus credenciales
-TELEGRAM_BOT_TOKEN=tu_token_aqui
-OPENAI_API_KEY=tu_api_key_aqui
-OPENAI_MODEL=gpt-4o-mini
-
-# 4. Ejecutar
-npm run dev
-```
-
-### Obtener credenciales
-
-**Telegram:** Habla con [@BotFather](https://t.me/botfather) → `/newbot`  
-**OpenAI:** [platform.openai.com](https://platform.openai.com/) → API Keys
 
 ## 📁 Estructura del Proyecto
 
