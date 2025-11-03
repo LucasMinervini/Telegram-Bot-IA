@@ -7,7 +7,7 @@
  */
 
 import OpenAI from 'openai';
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import * as path from 'path';
 import { 
   VisionProcessorConfig, 
@@ -23,6 +23,7 @@ import {
 export class VisionProcessor {
   private client: OpenAI;
   private config: VisionProcessorConfig;
+  private demoMode: boolean;
 
   constructor(config: VisionProcessorConfig) {
     this.config = {
@@ -31,9 +32,16 @@ export class VisionProcessor {
       ...config,
     };
 
+    // Activar modo demo si la variable de entorno está presente
+    this.demoMode = process.env.DEMO_MODE === 'true' || process.env.DEMO_MODE === '1';
+
     this.client = new OpenAI({
       apiKey: this.config.apiKey,
     });
+
+    if (this.demoMode) {
+      console.log('[VisionProcessor] 🎭 MODO DEMO ACTIVADO - No se consumirán créditos de OpenAI');
+    }
   }
 
   /**
@@ -53,6 +61,11 @@ export class VisionProcessor {
           userId: options.userId,
           messageId: options.messageId,
         };
+      }
+
+      // 🎭 MODO DEMO: Retornar datos simulados
+      if (this.demoMode) {
+        return this.generateDemoResponse(options, startTime);
       }
 
       // 2. Leer la imagen y convertir a base64
@@ -169,6 +182,148 @@ export class VisionProcessor {
   }
 
   /**
+   * 🎭 Genera una respuesta simulada para el modo DEMO
+   * @param options Opciones de procesamiento
+   * @param startTime Tiempo de inicio
+   * @returns Resultado simulado
+   */
+  private async generateDemoResponse(
+    options: ImageProcessingOptions,
+    startTime: number
+  ): Promise<ProcessingResult> {
+    console.log(`[VisionProcessor] 🎭 Generando respuesta DEMO (sin consumir créditos)...`);
+
+    // Simular un delay realista (1-3 segundos)
+    const delay = 1000 + Math.random() * 2000;
+    await new Promise(resolve => setTimeout(resolve, delay));
+
+    // Generar datos simulados aleatorios pero realistas
+    const demoInvoices = [
+      {
+        invoiceNumber: "DEMO-FC-0001-00012345",
+        date: "2025-10-29",
+        operationType: "Transferencia bancaria",
+        vendor: {
+          name: "Tech Solutions S.A.",
+          taxId: "30-71234567-8",
+          cvu: undefined,
+          address: "Av. Corrientes 1500, CABA, Argentina"
+        },
+        totalAmount: 125600.50,
+        currency: "ARS",
+        receiverBank: "Banco Galicia",
+        items: [
+          {
+            description: "Servicio de desarrollo web",
+            quantity: 40,
+            unitPrice: 2500.00,
+            subtotal: 100000.00
+          },
+          {
+            description: "Consultoría técnica",
+            quantity: 10,
+            unitPrice: 1500.00,
+            subtotal: 15000.00
+          }
+        ],
+        taxes: {
+          iva: 24150.50,
+          otherTaxes: 1450.00
+        },
+        paymentMethod: "Transferencia bancaria"
+      },
+      {
+        invoiceNumber: "DEMO-A-0523-00987654",
+        date: "2025-10-30",
+        operationType: "Depósito",
+        vendor: {
+          name: "Distribuidora El Sol S.R.L.",
+          taxId: "33-45678901-2",
+          cvu: "0000003100045678901234",
+          address: "Calle Falsa 123, Rosario"
+        },
+        totalAmount: 45890.00,
+        currency: "ARS",
+        receiverBank: "Banco Nación",
+        items: [
+          {
+            description: "Producto de oficina",
+            quantity: 50,
+            unitPrice: 750.00,
+            subtotal: 37500.00
+          }
+        ],
+        taxes: {
+          iva: 7875.00,
+          otherTaxes: 515.00
+        },
+        paymentMethod: "Efectivo"
+      },
+      {
+        invoiceNumber: "DEMO-B-0001-00456789",
+        date: "2025-10-31",
+        operationType: "Transferencia internacional",
+        vendor: {
+          name: "Global Services Inc.",
+          taxId: "20-98765432-1",
+          cvu: undefined,
+          address: "Av. Santa Fe 2450, CABA"
+        },
+        totalAmount: 88500.00,
+        currency: "USD",
+        receiverBank: "Banco Santander Río",
+        items: [
+          {
+            description: "Licencias de software",
+            quantity: 15,
+            unitPrice: 5000.00,
+            subtotal: 75000.00
+          },
+          {
+            description: "Soporte técnico anual",
+            quantity: 1,
+            unitPrice: 10000.00,
+            subtotal: 10000.00
+          }
+        ],
+        taxes: {
+          iva: 3150.00,
+          otherTaxes: 350.00
+        },
+        paymentMethod: "Tarjeta de crédito"
+      }
+    ];
+
+    // Seleccionar una factura basada en el userId para que sea determinística
+    const invoiceIndex = options.userId % demoInvoices.length;
+    const randomInvoice = demoInvoices[invoiceIndex];
+
+    const processingTime = Date.now() - startTime;
+
+    const invoiceData = {
+      ...randomInvoice,
+      metadata: {
+        processedAt: new Date().toISOString(),
+        processingTimeMs: processingTime,
+        confidence: 'high' as const,
+        model: '🎭 DEMO MODE (simulado)',
+      },
+    };
+
+    // Validar con el schema
+    const validatedInvoice = InvoiceSchema.parse(invoiceData);
+
+    console.log(`[VisionProcessor] ✅ Respuesta DEMO generada en ${processingTime}ms`);
+
+    return {
+      success: true,
+      invoice: validatedInvoice,
+      userId: options.userId,
+      messageId: options.messageId,
+    };
+  }
+
+  /**
    * Construye el prompt optimizado para extracción de datos
    * @returns String con el prompt
    */
@@ -179,12 +334,15 @@ Analiza esta imagen de comprobante/factura y extrae la siguiente información en
 CAMPOS REQUERIDOS:
 - invoiceNumber: Número de factura o comprobante (string)
 - date: Fecha de emisión en formato YYYY-MM-DD (string)
+- operationType: Tipo de operación (string, ej: "Transferencia", "Depósito", "Pago", "Factura", etc.)
 - vendor: Objeto con información del proveedor
   - name: Nombre del proveedor/emisor (string)
-  - taxId: CUIT/RUT/RFC/Tax ID (string, opcional)
+  - taxId: CUIT/CUIL/RUT/RFC/Tax ID (string, opcional)
+  - cvu: CVU (Clave Virtual Uniforme) si está presente (string, opcional)
   - address: Dirección del proveedor (string, opcional)
-- totalAmount: Monto total de la factura (number)
+- totalAmount: Monto total bruto de la factura (number)
 - currency: Código de moneda ISO 4217 (string, 3 letras, ej: "ARS", "USD", "EUR")
+- receiverBank: Nombre del banco receptor (string, opcional pero importante si está visible)
 - items: Array de items/productos (mínimo 1 item)
   - description: Descripción del producto/servicio (string)
   - quantity: Cantidad (number)
@@ -214,13 +372,16 @@ Ejemplo de estructura:
 {
   "invoiceNumber": "001-234",
   "date": "2025-10-29",
+  "operationType": "Transferencia bancaria",
   "vendor": {
     "name": "Empresa XYZ S.A.",
     "taxId": "30-12345678-9",
+    "cvu": "0000003100012345678901",
     "address": "Av. Corrientes 1234, CABA"
   },
   "totalAmount": 15750.00,
   "currency": "ARS",
+  "receiverBank": "Banco Galicia",
   "items": [
     {
       "description": "Servicio de consultoría",

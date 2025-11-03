@@ -39,17 +39,24 @@ export class ExcelGenerator {
     // Formatear fecha de YYYY-MM-DD a DD/MM/YYYY
     const dateFormatted = this.formatDateForExcel(invoice.date);
     
-    // Determinar tipo de operación desde paymentMethod o usar default
-    const tipoOperacion = this.extractOperationType(invoice.paymentMethod);
+    // Usar operationType si está disponible, sino extraer del paymentMethod
+    const tipoOperacion = invoice.operationType || this.extractOperationType(invoice.paymentMethod);
     
-    // Extraer CUIT del vendor
-    const cuit = invoice.vendor.taxId || '';
+    // Determinar qué identificador usar: CVU > CUIT > Nombre
+    let cuit = '';
+    if (invoice.vendor.cvu) {
+      cuit = invoice.vendor.cvu;
+    } else if (invoice.vendor.taxId) {
+      cuit = invoice.vendor.taxId;
+    } else {
+      cuit = invoice.vendor.name;
+    }
     
     // Monto bruto es el total
     const montoBruto = invoice.totalAmount;
     
-    // Extraer banco receptor del nombre del vendor o campo adicional
-    const bancoReceptor = this.extractBankName(invoice.vendor.name);
+    // Usar receiverBank si está disponible, sino extraer del nombre del vendor
+    const bancoReceptor = invoice.receiverBank || this.extractBankName(invoice.vendor.name);
 
     return {
       fecha: dateFormatted,
@@ -66,8 +73,22 @@ export class ExcelGenerator {
    * @returns Fecha formateada
    */
   private formatDateForExcel(dateString: string): string {
+    if (!dateString) return dateString;
+    
     try {
-      const [year, month, day] = dateString.split('-');
+      const parts = dateString.split('-');
+      // Verificar que tiene exactamente 3 partes (year-month-day)
+      if (parts.length !== 3) {
+        return dateString; // Retornar original si no tiene formato válido
+      }
+      
+      const [year, month, day] = parts;
+      
+      // Validar que las partes sean números
+      if (!year || !month || !day || isNaN(Number(year)) || isNaN(Number(month)) || isNaN(Number(day))) {
+        return dateString;
+      }
+      
       return `${day}/${month}/${year}`;
     } catch {
       return dateString;
@@ -128,18 +149,18 @@ export class ExcelGenerator {
       properties: { tabColor: { argb: 'FF0066CC' } },
     });
 
-    // Configurar columnas con anchos específicos
+    // Configurar columnas (anchos se ajustarán después)
     worksheet.columns = [
-      { header: 'Fecha', key: 'fecha', width: 12 },
-      { header: 'Tipo Operación', key: 'tipoOperacion', width: 18 },
-      { header: 'Cuit', key: 'cuit', width: 20 },
-      { header: 'Monto Bruto', key: 'montoBruto', width: 18 },
-      { header: 'Banco receptor', key: 'bancoReceptor', width: 20 },
+      { header: 'Fecha', key: 'fecha' },
+      { header: 'Tipo Operación', key: 'tipoOperacion' },
+      { header: 'Cuit', key: 'cuit' },
+      { header: 'Monto Bruto', key: 'montoBruto' },
+      { header: 'Banco receptor', key: 'bancoReceptor' },
     ];
 
     // Estilizar la fila de encabezados (fila 1)
     const headerRow = worksheet.getRow(1);
-    headerRow.height = 20;
+    headerRow.height = 35; // Más altura para los headers
     
     headerRow.eachCell((cell) => {
       cell.fill = {
@@ -148,14 +169,15 @@ export class ExcelGenerator {
         fgColor: { argb: 'FF0066CC' }, // Azul como en la imagen
       };
       cell.font = {
-        name: 'Calibri',
-        size: 11,
+        name: 'Segoe UI',
+        size: 13,
         bold: true,
         color: { argb: 'FFFFFFFF' }, // Blanco
       };
       cell.alignment = {
         vertical: 'middle',
         horizontal: 'center',
+        indent: 1, // Padding interno
       };
       cell.border = {
         top: { style: 'thin', color: { argb: 'FF000000' } },
@@ -169,9 +191,18 @@ export class ExcelGenerator {
     invoices.forEach((invoice) => {
       const rowData = this.invoiceToRow(invoice);
       const row = worksheet.addRow(rowData);
+      row.height = 22; // Altura de las filas de datos
 
-      // Aplicar bordes a todas las celdas de datos
+      // Aplicar estilos a todas las celdas de datos
       row.eachCell((cell, colNumber) => {
+        // Fondo amarillo para todas las celdas de datos
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFFFF00' }, // Amarillo
+        };
+
+        // Bordes
         cell.border = {
           top: { style: 'thin', color: { argb: 'FF000000' } },
           left: { style: 'thin', color: { argb: 'FF000000' } },
@@ -179,25 +210,37 @@ export class ExcelGenerator {
           right: { style: 'thin', color: { argb: 'FF000000' } },
         };
 
-        // Alineación según columna
-        if (colNumber === 1 || colNumber === 2 || colNumber === 5) {
-          // Fecha, Tipo Operación, Banco receptor: alineado a la izquierda
-          cell.alignment = { vertical: 'middle', horizontal: 'left' };
-        } else if (colNumber === 3) {
-          // CUIT: alineado a la izquierda
-          cell.alignment = { vertical: 'middle', horizontal: 'left' };
-        } else if (colNumber === 4) {
-          // Monto: alineado a la derecha con formato de moneda
-          cell.alignment = { vertical: 'middle', horizontal: 'right' };
+        // Todos los datos centrados con padding
+        cell.alignment = { 
+          vertical: 'middle', 
+          horizontal: 'center',
+          indent: 1, // Padding interno
+        };
+
+        // Formato especial para monto
+        if (colNumber === 4) {
           cell.numFmt = '$#,##0.00'; // Formato de moneda con separador de miles
         }
 
-        // Font para datos
+        // Font para datos - Fuente moderna y legible
         cell.font = {
-          name: 'Calibri',
+          name: 'Segoe UI',
           size: 11,
         };
       });
+    });
+
+    // Auto-ajustar ancho de columnas basado en contenido
+    worksheet.columns.forEach((column) => {
+      let maxLength = 0;
+      if (column.eachCell) {
+        column.eachCell({ includeEmpty: false }, (cell) => {
+          const cellValue = cell.value ? cell.value.toString() : '';
+          maxLength = Math.max(maxLength, cellValue.length);
+        });
+      }
+      // Agregar padding extra para el ancho
+      column.width = Math.max(12, maxLength + 4);
     });
 
     // Generar buffer
@@ -218,15 +261,15 @@ export class ExcelGenerator {
 
     // Mismo proceso que generateExcel pero guardando en archivo
     worksheet.columns = [
-      { header: 'Fecha', key: 'fecha', width: 12 },
-      { header: 'Tipo Operación', key: 'tipoOperacion', width: 18 },
-      { header: 'Cuit', key: 'cuit', width: 20 },
-      { header: 'Monto Bruto', key: 'montoBruto', width: 18 },
-      { header: 'Banco receptor', key: 'bancoReceptor', width: 20 },
+      { header: 'Fecha', key: 'fecha' },
+      { header: 'Tipo Operación', key: 'tipoOperacion' },
+      { header: 'Cuit', key: 'cuit' },
+      { header: 'Monto Bruto', key: 'montoBruto' },
+      { header: 'Banco receptor', key: 'bancoReceptor' },
     ];
 
     const headerRow = worksheet.getRow(1);
-    headerRow.height = 20;
+    headerRow.height = 35; // Más altura para los headers
     
     headerRow.eachCell((cell) => {
       cell.fill = {
@@ -235,14 +278,15 @@ export class ExcelGenerator {
         fgColor: { argb: 'FF0066CC' },
       };
       cell.font = {
-        name: 'Calibri',
-        size: 11,
+        name: 'Segoe UI',
+        size: 13,
         bold: true,
         color: { argb: 'FFFFFFFF' },
       };
       cell.alignment = {
         vertical: 'middle',
         horizontal: 'center',
+        indent: 1, // Padding interno
       };
       cell.border = {
         top: { style: 'thin', color: { argb: 'FF000000' } },
@@ -255,8 +299,17 @@ export class ExcelGenerator {
     invoices.forEach((invoice) => {
       const rowData = this.invoiceToRow(invoice);
       const row = worksheet.addRow(rowData);
+      row.height = 22; // Altura de las filas de datos
 
       row.eachCell((cell, colNumber) => {
+        // Fondo amarillo para todas las celdas de datos
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFFFF00' }, // Amarillo
+        };
+
+        // Bordes
         cell.border = {
           top: { style: 'thin', color: { argb: 'FF000000' } },
           left: { style: 'thin', color: { argb: 'FF000000' } },
@@ -264,20 +317,36 @@ export class ExcelGenerator {
           right: { style: 'thin', color: { argb: 'FF000000' } },
         };
 
-        if (colNumber === 1 || colNumber === 2 || colNumber === 5) {
-          cell.alignment = { vertical: 'middle', horizontal: 'left' };
-        } else if (colNumber === 3) {
-          cell.alignment = { vertical: 'middle', horizontal: 'left' };
-        } else if (colNumber === 4) {
-          cell.alignment = { vertical: 'middle', horizontal: 'right' };
+        // Todos los datos centrados con padding
+        cell.alignment = { 
+          vertical: 'middle', 
+          horizontal: 'center',
+          indent: 1, // Padding interno
+        };
+
+        // Formato especial para monto
+        if (colNumber === 4) {
           cell.numFmt = '$#,##0.00';
         }
 
         cell.font = {
-          name: 'Calibri',
+          name: 'Segoe UI',
           size: 11,
         };
       });
+    });
+
+    // Auto-ajustar ancho de columnas basado en contenido
+    worksheet.columns.forEach((column) => {
+      let maxLength = 0;
+      if (column.eachCell) {
+        column.eachCell({ includeEmpty: false }, (cell) => {
+          const cellValue = cell.value ? cell.value.toString() : '';
+          maxLength = Math.max(maxLength, cellValue.length);
+        });
+      }
+      // Agregar padding extra para el ancho
+      column.width = Math.max(12, maxLength + 4);
     });
 
     await workbook.xlsx.writeFile(filepath);

@@ -28,6 +28,9 @@ export class TelegramBot {
   private excelGenerator: ExcelGenerator;
   private sessionManager: SessionManager;
   private logger: Logger;
+  private controlMessages: Map<number, number>; // userId -> messageId del panel de control
+  private controlPanelUpdateQueue: Map<number, NodeJS.Timeout>; // userId -> timeout para throttling
+  private pendingUpdates: Map<number, { chatId: number; totalInvoices: number }>; // Info pendiente de actualización
 
   constructor(token: string) {
     this.bot = new Telegraf(token);
@@ -36,6 +39,9 @@ export class TelegramBot {
     this.excelGenerator = new ExcelGenerator();
     this.sessionManager = new SessionManager(30); // 30 minutos de timeout
     this.logger = new Logger('TelegramBot');
+    this.controlMessages = new Map();
+    this.controlPanelUpdateQueue = new Map();
+    this.pendingUpdates = new Map();
 
     this.setupCommands();
     this.setupHandlers();
@@ -159,6 +165,104 @@ export class TelegramBot {
   }
 
   /**
+   * Actualiza o crea el panel de control con los botones (con throttling)
+   */
+  private async updateControlPanel(ctx: Context, userId: number, totalInvoices: number): Promise<void> {
+    if (!ctx.chat) return;
+
+    // Guardar info de la actualización pendiente
+    this.pendingUpdates.set(userId, { 
+      chatId: ctx.chat.id, 
+      totalInvoices 
+    });
+
+    // Cancelar actualización pendiente si existe
+    const existingTimeout = this.controlPanelUpdateQueue.get(userId);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+    }
+
+    // Programar actualización con un pequeño delay para evitar rate limits
+    const timeout = setTimeout(async () => {
+      const updateInfo = this.pendingUpdates.get(userId);
+      if (updateInfo) {
+        await this.performControlPanelUpdate(updateInfo.chatId, userId, updateInfo.totalInvoices);
+        this.pendingUpdates.delete(userId);
+      }
+      this.controlPanelUpdateQueue.delete(userId);
+    }, 500); // 500ms de delay
+
+    this.controlPanelUpdateQueue.set(userId, timeout);
+  }
+
+  /**
+   * Ejecuta la actualización real del panel de control
+   */
+  private async performControlPanelUpdate(chatId: number, userId: number, totalInvoices: number): Promise<void> {
+    const messageText = `
+📊 **Panel de Control**
+
+📋 Facturas acumuladas: **${totalInvoices}**
+
+💡 Envía más facturas o descarga el Excel
+    `.trim();
+
+    const keyboard = Markup.inlineKeyboard([
+      [Markup.button.callback(`📥 Descargar Excel (${totalInvoices})`, 'download_excel')],
+      [
+        Markup.button.callback('🗑️ Limpiar Sesión', 'clear_session'),
+        Markup.button.callback('📊 Ver Resumen', 'show_summary')
+      ]
+    ]);
+
+    const existingMessageId = this.controlMessages.get(userId);
+
+    try {
+      if (existingMessageId) {
+        // Intentar editar el mensaje existente
+        await this.bot.telegram.editMessageText(
+          chatId,
+          existingMessageId,
+          undefined,
+          messageText,
+          { 
+            parse_mode: 'Markdown',
+            reply_markup: keyboard.reply_markup
+          }
+        );
+        this.logger.info(`Panel de control actualizado para usuario ${userId} (${totalInvoices} facturas)`);
+      } else {
+        // Crear nuevo mensaje y guardar su ID
+        const sentMessage = await this.bot.telegram.sendMessage(
+          chatId,
+          messageText,
+          keyboard
+        );
+        this.controlMessages.set(userId, sentMessage.message_id);
+        this.logger.info(`Panel de control creado para usuario ${userId} (${totalInvoices} facturas)`);
+      }
+    } catch (error: any) {
+      this.logger.error(`Error en panel de control: ${error.message}`);
+      
+      // Si falla la edición (mensaje borrado o demasiados requests), crear uno nuevo
+      if (error.response?.error_code === 400 || error.response?.error_code === 429) {
+        try {
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Esperar 1 segundo
+          const sentMessage = await this.bot.telegram.sendMessage(
+            chatId,
+            messageText,
+            keyboard
+          );
+          this.controlMessages.set(userId, sentMessage.message_id);
+          this.logger.info(`Panel de control recreado para usuario ${userId}`);
+        } catch (retryError: any) {
+          this.logger.error('Error creando panel de control:', retryError.message);
+        }
+      }
+    }
+  }
+
+  /**
    * Maneja mensajes con fotos
    */
   private async handlePhotoMessage(ctx: Context & { message: any }): Promise<void> {
@@ -216,32 +320,19 @@ export class TelegramBot {
         this.sessionManager.addInvoice(userId, processingResult.invoice);
         const totalInvoices = this.sessionManager.getInvoiceCount(userId);
 
-        // Editar mensaje de "procesando" con el resumen
+        // Editar mensaje de "procesando" con confirmación compacta
         const invoiceResponse = new InvoiceResponse(processingResult.invoice);
         
         await ctx.telegram.editMessageText(
           ctx.chat.id,
           processingMsg.message_id,
           undefined,
-          invoiceResponse.toReadableSummary(),
+          `✅ ${invoiceResponse.toCompactSummary()}`,
           { parse_mode: 'Markdown' }
         );
 
-        // Crear botones inline
-        const keyboard = Markup.inlineKeyboard([
-          [Markup.button.callback(`📥 Descargar Excel (${totalInvoices})`, 'download_excel')],
-          [
-            Markup.button.callback('🗑️ Limpiar Sesión', 'clear_session'),
-            Markup.button.callback('📊 Ver Resumen', 'show_summary')
-          ]
-        ]);
-
-        // Enviar mensaje con botones
-        await ctx.reply(
-          `✅ Factura agregada a tu sesión.\n\n📋 Total de facturas: ${totalInvoices}\n\n` +
-          `💡 Envía más facturas para acumularlas o descarga el Excel con el botón de abajo.`,
-          keyboard
-        );
+        // Actualizar o crear panel de control
+        await this.updateControlPanel(ctx, userId, totalInvoices);
 
         this.logger.success(`✅ Comprobante procesado para usuario ${userId}. Total: ${totalInvoices}`);
       } else {
@@ -305,31 +396,7 @@ export class TelegramBot {
       return;
     }
 
-    // Si es PDF, informar limitación
-    if (fileExtension === 'pdf') {
-      await ctx.reply(
-        '⚠️ **Nota sobre archivos PDF:**\n\n' +
-        'El procesamiento de PDFs puede tener limitaciones. ' +
-        'Para mejores resultados, convierte el PDF a imagen (JPG/PNG) antes de enviarlo.\n\n' +
-        '⏳ Procesando...',
-        { parse_mode: 'Markdown' }
-      );
-    }
-
-    // Si es documento de Office, informar
-    const officeFormats = ['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt'];
-    if (officeFormats.includes(fileExtension)) {
-      await ctx.reply(
-        '📄 **Procesando documento de Office:**\n\n' +
-        `Archivo detectado: ${fileExtension.toUpperCase()}\n` +
-        'El bot extraerá automáticamente el contenido del documento.\n' +
-        'Si el documento contiene imágenes o facturas escaneadas, se procesarán con IA.\n\n' +
-        '⏳ Procesando...',
-        { parse_mode: 'Markdown' }
-      );
-    }
-
-    // Procesar como foto (mismo flujo)
+    // Procesar documento (mismo flujo que foto)
     const userId = ctx.from.id;
     const messageId = ctx.message.message_id;
 
@@ -373,31 +440,19 @@ export class TelegramBot {
         this.sessionManager.addInvoice(userId, processingResult.invoice);
         const totalInvoices = this.sessionManager.getInvoiceCount(userId);
 
+        // Editar mensaje de "procesando" con confirmación compacta
         const invoiceResponse = new InvoiceResponse(processingResult.invoice);
         
         await ctx.telegram.editMessageText(
           ctx.chat.id,
           processingMsg.message_id,
           undefined,
-          invoiceResponse.toReadableSummary(),
+          `✅ ${invoiceResponse.toCompactSummary()}`,
           { parse_mode: 'Markdown' }
         );
 
-        // Crear botones inline
-        const keyboard = Markup.inlineKeyboard([
-          [Markup.button.callback(`📥 Descargar Excel (${totalInvoices})`, 'download_excel')],
-          [
-            Markup.button.callback('🗑️ Limpiar Sesión', 'clear_session'),
-            Markup.button.callback('📊 Ver Resumen', 'show_summary')
-          ]
-        ]);
-
-        // Enviar mensaje con botones
-        await ctx.reply(
-          `✅ Factura agregada a tu sesión.\n\n📋 Total de facturas: ${totalInvoices}\n\n` +
-          `💡 Envía más facturas para acumularlas o descarga el Excel con el botón de abajo.`,
-          keyboard
-        );
+        // Actualizar o crear panel de control
+        await this.updateControlPanel(ctx, userId, totalInvoices);
 
         this.logger.success(`✅ Documento procesado para usuario ${userId}. Total: ${totalInvoices}`);
       } else {
@@ -511,6 +566,20 @@ export class TelegramBot {
     }
 
     this.sessionManager.clearInvoices(userId);
+    
+    // Intentar borrar el panel de control
+    const controlMessageId = this.controlMessages.get(userId);
+    if (controlMessageId && ctx.chat) {
+      try {
+        await ctx.telegram.deleteMessage(ctx.chat.id, controlMessageId);
+      } catch (error) {
+        // Si falla, no importa (el mensaje ya fue borrado por el usuario)
+      }
+    }
+    
+    // Limpiar el registro del panel de control
+    this.controlMessages.delete(userId);
+    
     await ctx.reply(`🗑️ Sesión limpiada.\n\n${count} factura(s) eliminada(s).\n\n` +
       `Envía una nueva imagen para comenzar.`);
     

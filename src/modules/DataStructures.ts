@@ -23,42 +23,48 @@ export class InvoiceResponse {
    */
   toReadableSummary(): string {
     const { invoice } = this;
-    const confidenceEmoji = {
-      high: '🟢',
-      medium: '🟡',
-      low: '🔴',
-    };
+
+    // Determinar qué mostrar para identificación fiscal: CVU > CUIT > Nombre
+    let fiscalInfo = '';
+    if (invoice.vendor.cvu) {
+      fiscalInfo = `CVU: ${invoice.vendor.cvu}`;
+    } else if (invoice.vendor.taxId) {
+      fiscalInfo = `CUIT/CUIL: ${invoice.vendor.taxId}`;
+    } else {
+      fiscalInfo = `Titular: ${invoice.vendor.name}`;
+    }
 
     const summary = `
 ✅ **Comprobante procesado exitosamente**
 
-📄 **Información General**
-• Número: ${invoice.invoiceNumber}
-• Fecha: ${this.formatDate(invoice.date)}
-• Moneda: ${invoice.currency}
-• Confianza: ${confidenceEmoji[invoice.metadata.confidence]} ${invoice.metadata.confidence.toUpperCase()}
-
-🏢 **Proveedor**
-• Nombre: ${invoice.vendor.name}
-${invoice.vendor.taxId ? `• ID Fiscal: ${invoice.vendor.taxId}` : ''}
-${invoice.vendor.address ? `• Dirección: ${invoice.vendor.address}` : ''}
-
-💰 **Montos**
-• Total: ${this.formatCurrency(invoice.totalAmount, invoice.currency)}
-${invoice.taxes ? `• IVA: ${this.formatCurrency(invoice.taxes.iva, invoice.currency)}` : ''}
-${invoice.taxes && invoice.taxes.otherTaxes > 0 ? `• Otros impuestos: ${this.formatCurrency(invoice.taxes.otherTaxes, invoice.currency)}` : ''}
-
-📦 **Items** (${invoice.items.length})
-${this.formatItems()}
-
-${invoice.paymentMethod ? `💳 **Método de pago:** ${invoice.paymentMethod}` : ''}
-
-⏱️ **Procesamiento**
-• Tiempo: ${invoice.metadata.processingTimeMs}ms
-• Modelo: ${invoice.metadata.model || 'N/A'}
+📅 **Fecha:** ${this.formatDate(invoice.date)}
+${invoice.operationType ? `💼 **Tipo de operación:** ${invoice.operationType}` : ''}
+🆔 **${fiscalInfo}**
+💰 **Monto bruto:** ${this.formatCurrency(invoice.totalAmount, invoice.currency)}
+${invoice.receiverBank ? `🏦 **Banco receptor:** ${invoice.receiverBank}` : ''}
     `.trim();
 
     return summary;
+  }
+
+  /**
+   * Genera un resumen compacto de una línea para listas
+   * @returns String con resumen de una línea
+   */
+  toCompactSummary(): string {
+    const { invoice } = this;
+    
+    // Identificador corto
+    let identifier = '';
+    if (invoice.vendor.cvu) {
+      identifier = invoice.vendor.cvu.substring(0, 10) + '...';
+    } else if (invoice.vendor.taxId) {
+      identifier = invoice.vendor.taxId;
+    } else {
+      identifier = invoice.vendor.name.substring(0, 20);
+    }
+
+    return `${this.formatDate(invoice.date)} | ${identifier} | ${this.formatCurrency(invoice.totalAmount, invoice.currency)}`;
   }
 
   /**
@@ -168,7 +174,7 @@ export class ProcessingResultFormatter {
     // Mapear errores técnicos a mensajes amigables
     const friendlyMessages: Record<string, string> = {
       'imagen no existe': '❌ No se pudo encontrar la imagen. Por favor, intenta enviarla nuevamente.',
-      'API Key': '❌ Error de configuración del servidor. Por favor, contacta al administrador.',
+      'api key': '❌ Error de configuración del servidor. Por favor, contacta al administrador.',
       'validación': '⚠️ No se pudo extraer toda la información del comprobante. Por favor, verifica que la imagen sea clara y legible.',
       'rate limit': '⏸️ Se ha alcanzado el límite de procesamiento. Por favor, intenta nuevamente en unos minutos.',
       'timeout': '⏱️ El procesamiento está tomando más tiempo de lo esperado. Por favor, intenta nuevamente.',
@@ -176,7 +182,7 @@ export class ProcessingResultFormatter {
 
     // Buscar mensaje amigable basado en keywords
     for (const [keyword, friendlyMsg] of Object.entries(friendlyMessages)) {
-      if (errorMessage.toLowerCase().includes(keyword)) {
+      if (errorMessage.toLowerCase().includes(keyword.toLowerCase())) {
         return friendlyMsg;
       }
     }

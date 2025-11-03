@@ -16,6 +16,7 @@ import { z } from 'zod';
 export const VendorSchema = z.object({
   name: z.string().min(1, 'El nombre del proveedor es requerido'),
   taxId: z.string().optional(), // CUIT, RUT, RFC, etc.
+  cvu: z.string().optional(), // CVU (Clave Virtual Uniforme)
   address: z.string().optional(),
 });
 
@@ -53,9 +54,11 @@ export const MetadataSchema = z.object({
 export const InvoiceSchema = z.object({
   invoiceNumber: z.string().min(1, 'Número de factura requerido'),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha debe ser YYYY-MM-DD'),
+  operationType: z.string().optional(), // Tipo de operación (Transferencia, Depósito, etc.)
   vendor: VendorSchema,
   totalAmount: z.number().positive('El monto total debe ser positivo'),
   currency: z.string().length(3, 'El código de moneda debe tener 3 caracteres (ISO 4217)').default('ARS'),
+  receiverBank: z.string().optional(), // Banco receptor
   items: z.array(InvoiceItemSchema).min(1, 'Debe haber al menos un item'),
   taxes: TaxesSchema.optional(),
   paymentMethod: z.string().optional(),

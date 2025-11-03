@@ -4,7 +4,7 @@
  * Maneja descarga desde Telegram, validación y limpieza de archivos
  */
 
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import * as path from 'path';
 import axios from 'axios';
 import { DocumentIngestorConfig, StorageResult } from './Interfaces';
