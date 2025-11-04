@@ -15,7 +15,11 @@ export default defineConfig({
         '**/*.config.ts',
         '**/*.config.js',
         '**/index.ts', // Entry point, no lógica a testear
+        '**/index.clean.ts', // Entry point clean architecture
         '**/TelegramBot.ts', // Bot principal, complejo de testear con mocks
+        '**/DIContainer.ts', // DI Container - no requiere tests unitarios
+        '**/TelegramBotController.ts', // E2E Controller - se testea con tests E2E
+        '**/domain/interfaces/**', // Interfaces no requieren tests
       ],
       // Target: 80% mínimo (LOGRADO: 91.43%)
       thresholds: {

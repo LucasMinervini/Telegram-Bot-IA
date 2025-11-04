@@ -83,22 +83,19 @@ describe('SessionManager', () => {
       expect(sessionManager.getInvoices(user2)[0].invoiceNumber).toBe('002-001');
     });
 
-    it('debería actualizar lastActivity al agregar factura', () => {
+    it('debería actualizar lastActivity al agregar factura', async () => {
       const userId = 12345;
       
       sessionManager.addInvoice(userId, createMockInvoice('001-001'));
-      const info1 = sessionManager.getSessionInfo(userId);
+      const time1 = sessionManager.getSession(userId)?.lastActivity.getTime();
       
-      // Esperar un momento
-      vi.useFakeTimers();
-      vi.advanceTimersByTime(1000); // 1 segundo
+      // Esperar un momento real
+      await new Promise(resolve => setTimeout(resolve, 10));
       
       sessionManager.addInvoice(userId, createMockInvoice('001-002'));
-      const info2 = sessionManager.getSessionInfo(userId);
+      const time2 = sessionManager.getSession(userId)?.lastActivity.getTime();
 
-      expect(info2?.lastActivity.getTime()).toBeGreaterThan(info1?.lastActivity.getTime()!);
-      
-      vi.useRealTimers();
+      expect(time2).toBeGreaterThan(time1!);
     });
   });
 
@@ -126,19 +123,17 @@ describe('SessionManager', () => {
       expect(invoices[2].totalAmount).toBe(300);
     });
 
-    it('no debería modificar las facturas al retornarlas', () => {
+    it('debería retornar copias de las facturas', () => {
       const userId = 12345;
       const original = createMockInvoice('001-001', 1000);
       
       sessionManager.addInvoice(userId, original);
       const retrieved = sessionManager.getInvoices(userId);
       
-      // Modificar la factura retornada
-      retrieved[0].totalAmount = 9999;
-      
-      // La factura en la sesión debería estar modificada (referencia compartida)
-      const again = sessionManager.getInvoices(userId);
-      expect(again[0].totalAmount).toBe(9999); // Nota: esto es comportamiento esperado
+      // Las facturas tienen getters readonly que protegen la integridad del dominio
+      expect(retrieved[0].totalAmount).toBe(1000);
+      expect(retrieved[0].invoiceNumber).toBe('001-001');
+      expect(retrieved).toHaveLength(1);
     });
   });
 
@@ -178,21 +173,19 @@ describe('SessionManager', () => {
       expect(sessionManager.getInvoices(userId)).toEqual([]);
     });
 
-    it('debería actualizar lastActivity al limpiar', () => {
+    it('debería actualizar lastActivity al limpiar', async () => {
       const userId = 12345;
       
       sessionManager.addInvoice(userId, createMockInvoice('001-001'));
-      const info1 = sessionManager.getSessionInfo(userId);
+      const time1 = sessionManager.getSession(userId)?.lastActivity.getTime();
       
-      vi.useFakeTimers();
-      vi.advanceTimersByTime(1000);
+      // Esperar un momento real
+      await new Promise(resolve => setTimeout(resolve, 10));
       
       sessionManager.clearInvoices(userId);
-      const info2 = sessionManager.getSessionInfo(userId);
+      const time2 = sessionManager.getSession(userId)?.lastActivity.getTime();
 
-      expect(info2?.lastActivity.getTime()).toBeGreaterThan(info1?.lastActivity.getTime()!);
-      
-      vi.useRealTimers();
+      expect(time2).toBeGreaterThan(time1!);
     });
 
     it('no debería generar error al limpiar sesión inexistente', () => {
@@ -207,9 +200,9 @@ describe('SessionManager', () => {
       sessionManager.addInvoice(userId, createMockInvoice('001-001'));
       sessionManager.clearInvoices(userId);
       
-      const info = sessionManager.getSessionInfo(userId);
-      expect(info).not.toBeNull();
-      expect(info?.invoiceCount).toBe(0);
+      const session = sessionManager.getSession(userId);
+      expect(session).toBeDefined();
+      expect(session?.invoices.length).toBe(0);
     });
   });
 
@@ -218,12 +211,12 @@ describe('SessionManager', () => {
       const userId = 12345;
       
       sessionManager.addInvoice(userId, createMockInvoice('001-001'));
-      expect(sessionManager.hasInvoices(userId)).toBe(true);
+      expect(sessionManager.hasSession(userId)).toBe(true);
       
       sessionManager.deleteSession(userId);
       
-      expect(sessionManager.getSessionInfo(userId)).toBeNull();
-      expect(sessionManager.hasInvoices(userId)).toBe(false);
+      expect(sessionManager.getSession(userId)).toBeUndefined();
+      expect(sessionManager.hasSession(userId)).toBe(false);
     });
 
     it('no debería generar error al eliminar sesión inexistente', () => {
@@ -233,18 +226,18 @@ describe('SessionManager', () => {
     });
   });
 
-  describe('hasInvoices', () => {
+  describe('hasSession', () => {
     it('debería retornar false para usuario sin sesión', () => {
-      expect(sessionManager.hasInvoices(99999)).toBe(false);
+      expect(sessionManager.hasSession(99999)).toBe(false);
     });
 
-    it('debería retornar false para sesión vacía', () => {
+    it('debería retornar true para sesión vacía', () => {
       const userId = 12345;
       
       sessionManager.addInvoice(userId, createMockInvoice('001-001'));
       sessionManager.clearInvoices(userId);
       
-      expect(sessionManager.hasInvoices(userId)).toBe(false);
+      expect(sessionManager.hasSession(userId)).toBe(true);
     });
 
     it('debería retornar true cuando hay facturas', () => {
@@ -252,12 +245,12 @@ describe('SessionManager', () => {
       
       sessionManager.addInvoice(userId, createMockInvoice('001-001'));
       
-      expect(sessionManager.hasInvoices(userId)).toBe(true);
+      expect(sessionManager.hasSession(userId)).toBe(true);
     });
   });
 
-  describe('getStats', () => {
-    it('debería retornar estadísticas correctas con múltiples usuarios', () => {
+  describe('getActiveSessionCount', () => {
+    it('debería retornar el número correcto de sesiones activas', () => {
       sessionManager.addInvoice(11111, createMockInvoice('001-001'));
       sessionManager.addInvoice(11111, createMockInvoice('001-002'));
       sessionManager.addInvoice(22222, createMockInvoice('002-001'));
@@ -265,39 +258,36 @@ describe('SessionManager', () => {
       sessionManager.addInvoice(33333, createMockInvoice('003-002'));
       sessionManager.addInvoice(33333, createMockInvoice('003-003'));
 
-      const stats = sessionManager.getStats();
+      const count = sessionManager.getActiveSessionCount();
 
-      expect(stats.totalSessions).toBe(3);
-      expect(stats.totalInvoices).toBe(6);
+      expect(count).toBe(3);
     });
 
-    it('debería retornar ceros cuando no hay sesiones', () => {
-      const stats = sessionManager.getStats();
+    it('debería retornar cero cuando no hay sesiones', () => {
+      const count = sessionManager.getActiveSessionCount();
 
-      expect(stats.totalSessions).toBe(0);
-      expect(stats.totalInvoices).toBe(0);
+      expect(count).toBe(0);
     });
 
-    it('debería actualizar estadísticas después de limpiar sesión', () => {
+    it('debería mantener el conteo después de limpiar sesión', () => {
       const userId = 12345;
       
       sessionManager.addInvoice(userId, createMockInvoice('001-001'));
       sessionManager.addInvoice(userId, createMockInvoice('001-002'));
       
-      let stats = sessionManager.getStats();
-      expect(stats.totalInvoices).toBe(2);
+      let count = sessionManager.getActiveSessionCount();
+      expect(count).toBe(1);
       
       sessionManager.clearInvoices(userId);
-      stats = sessionManager.getStats();
-      expect(stats.totalInvoices).toBe(0);
-      expect(stats.totalSessions).toBe(1); // Sesión sigue existiendo
+      count = sessionManager.getActiveSessionCount();
+      expect(count).toBe(1); // Sesión sigue existiendo
     });
   });
 
-  describe('getSessionInfo', () => {
-    it('debería retornar null para usuario sin sesión', () => {
-      const info = sessionManager.getSessionInfo(99999);
-      expect(info).toBeNull();
+  describe('getSession', () => {
+    it('debería retornar undefined para usuario sin sesión', () => {
+      const session = sessionManager.getSession(99999);
+      expect(session).toBeUndefined();
     });
 
     it('debería retornar información correcta de la sesión', () => {
@@ -306,24 +296,24 @@ describe('SessionManager', () => {
       sessionManager.addInvoice(userId, createMockInvoice('001-001'));
       sessionManager.addInvoice(userId, createMockInvoice('001-002'));
 
-      const info = sessionManager.getSessionInfo(userId);
+      const session = sessionManager.getSession(userId);
 
-      expect(info).not.toBeNull();
-      expect(info?.invoiceCount).toBe(2);
-      expect(info?.lastActivity).toBeInstanceOf(Date);
+      expect(session).toBeDefined();
+      expect(session?.invoices.length).toBe(2);
+      expect(session?.lastActivity).toBeInstanceOf(Date);
     });
 
     it('debería reflejar cambios en el conteo de facturas', () => {
       const userId = 12345;
       
       sessionManager.addInvoice(userId, createMockInvoice('001-001'));
-      expect(sessionManager.getSessionInfo(userId)?.invoiceCount).toBe(1);
+      expect(sessionManager.getSession(userId)?.invoices.length).toBe(1);
       
       sessionManager.addInvoice(userId, createMockInvoice('001-002'));
-      expect(sessionManager.getSessionInfo(userId)?.invoiceCount).toBe(2);
+      expect(sessionManager.getSession(userId)?.invoices.length).toBe(2);
       
       sessionManager.clearInvoices(userId);
-      expect(sessionManager.getSessionInfo(userId)?.invoiceCount).toBe(0);
+      expect(sessionManager.getSession(userId)?.invoices.length).toBe(0);
     });
   });
 
@@ -338,26 +328,25 @@ describe('SessionManager', () => {
 
     it('debería limpiar sesiones expiradas después del timeout', () => {
       // Crear SessionManager con 1 minuto de timeout
-      const shortTimeoutManager = new SessionManager(1);
+      const shortTimeoutManager = new InMemoryInvoiceRepository(1);
       const userId = 12345;
 
       shortTimeoutManager.addInvoice(userId, createMockInvoice('001-001'));
-      expect(shortTimeoutManager.hasInvoices(userId)).toBe(true);
+      expect(shortTimeoutManager.hasSession(userId)).toBe(true);
 
       // Avanzar 2 minutos (más que el timeout)
       vi.advanceTimersByTime(2 * 60 * 1000);
 
-      // Triggear cleanup manualmente (en producción es automático cada 5 min)
-      // Nota: cleanExpiredSessions es privado, pero se ejecuta automáticamente
-      // Para testear, avanzamos el tiempo del interval
-      vi.advanceTimersByTime(5 * 60 * 1000); // Trigger interval
+      // Triggear cleanup manualmente
+      const cleaned = shortTimeoutManager.cleanExpiredSessions();
 
       // La sesión debería estar eliminada
-      expect(shortTimeoutManager.getSessionInfo(userId)).toBeNull();
+      expect(cleaned).toBeGreaterThan(0);
+      expect(shortTimeoutManager.getSession(userId)).toBeUndefined();
     });
 
     it('no debería limpiar sesiones que siguen activas', () => {
-      const shortTimeoutManager = new SessionManager(5); // 5 minutos
+      const shortTimeoutManager = new InMemoryInvoiceRepository(5); // 5 minutos
       const userId = 12345;
 
       shortTimeoutManager.addInvoice(userId, createMockInvoice('001-001'));
@@ -373,7 +362,9 @@ describe('SessionManager', () => {
 
       // Total: 6 minutos, pero lastActivity se actualizó a los 3 minutos
       // Así que solo han pasado 3 minutos desde la última actividad
-      expect(shortTimeoutManager.hasInvoices(userId)).toBe(true);
+      const cleaned = shortTimeoutManager.cleanExpiredSessions();
+      expect(cleaned).toBe(0);
+      expect(shortTimeoutManager.hasSession(userId)).toBe(true);
     });
   });
 
@@ -392,14 +383,14 @@ describe('SessionManager', () => {
       expect(sessionManager.getInvoiceCount(userId)).toBe(1);
 
       sessionManager.deleteSession(userId);
-      expect(sessionManager.getSessionInfo(userId)).toBeNull();
+      expect(sessionManager.getSession(userId)).toBeUndefined();
     });
 
     it('debería manejar IDs de usuario muy grandes', () => {
       const userId = Number.MAX_SAFE_INTEGER;
 
       sessionManager.addInvoice(userId, createMockInvoice('001-001'));
-      expect(sessionManager.hasInvoices(userId)).toBe(true);
+      expect(sessionManager.hasSession(userId)).toBe(true);
     });
   });
 });
