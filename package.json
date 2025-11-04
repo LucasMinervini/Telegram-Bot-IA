@@ -6,9 +6,17 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
+    "build:clean": "tsc",
     "start": "node dist/index.js",
+    "start:clean": "node dist/index.clean.js",
     "dev": "tsx watch src/index.ts",
-    "dev:nodemon": "nodemon --exec tsx src/index.ts"
+    "dev:clean": "tsx watch src/index.clean.ts",
+    "dev:nodemon": "nodemon --exec tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "test:coverage:ui": "vitest --ui --coverage"
   },
   "keywords": [
     "telegram",
@@ -26,14 +34,18 @@
     "openai": "^4.67.3",
     "zod": "^3.23.8",
     "axios": "^1.7.9",
-    "fs-extra": "^11.2.0"
+    "fs-extra": "^11.2.0",
+    "exceljs": "^4.4.0"
   },
   "devDependencies": {
     "@types/node": "^24.9.2",
     "@types/fs-extra": "^11.0.4",
+    "@vitest/coverage-v8": "^2.1.8",
+    "@vitest/ui": "^2.1.8",
     "concurrently": "^9.2.1",
     "nodemon": "^3.1.10",
     "tsx": "^4.20.6",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.8"
   }
 }

@@ -4,47 +4,50 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ExcelGenerator } from '../src/modules/ExcelGenerator';
-import type { Invoice } from '../src/modules/Interfaces';
+import { ExcelJSGenerator } from '../src/infrastructure/services/ExcelJSGenerator';
+import { Invoice } from '../src/domain/entities/Invoice.entity';
 import ExcelJS from 'exceljs';
 import fs from 'fs-extra';
 import path from 'path';
 
 describe('ExcelGenerator', () => {
-  let generator: ExcelGenerator;
+  let generator: ExcelJSGenerator;
 
   // Helper para crear factura de prueba
-  const createMockInvoice = (overrides?: Partial<Invoice>): Invoice => ({
-    invoiceNumber: '001-00001234',
-    date: '2025-11-03',
-    operationType: 'Transferencia',
-    vendor: {
-      name: 'Empresa Test SA',
-      taxId: '30-12345678-9',
-      cvu: '0000003100010123456789',
-    },
-    totalAmount: 15750.00,
-    currency: 'ARS',
-    receiverBank: 'Banco Test',
-    items: [
-      {
-        description: 'Servicio de consultoría',
-        quantity: 10,
-        unitPrice: 1500.00,
-        subtotal: 15000.00,
+  const createMockInvoice = (overrides?: any): Invoice => {
+    const props = {
+      invoiceNumber: '001-00001234',
+      date: '2025-11-03',
+      operationType: 'Transferencia',
+      vendor: {
+        name: 'Empresa Test SA',
+        taxId: '30-12345678-9',
+        cvu: '0000003100010123456789',
       },
-    ],
-    metadata: {
-      processedAt: '2025-11-03T10:00:00Z',
-      processingTimeMs: 6420,
-      confidence: 'high',
-      model: 'gpt-4o-mini',
-    },
-    ...overrides,
-  });
+      totalAmount: 15750.00,
+      currency: 'ARS',
+      receiverBank: 'Banco Test',
+      items: [
+        {
+          description: 'Servicio de consultoría',
+          quantity: 10,
+          unitPrice: 1500.00,
+          subtotal: 15000.00,
+        },
+      ],
+      metadata: {
+        processedAt: '2025-11-03T10:00:00Z',
+        processingTimeMs: 6420,
+        confidence: 'high',
+        model: 'gpt-4o-mini',
+      },
+      ...overrides,
+    };
+    return Invoice.create(props);
+  };
 
   beforeEach(() => {
-    generator = new ExcelGenerator();
+    generator = new ExcelJSGenerator();
   });
 
   describe('generateExcel', () => {

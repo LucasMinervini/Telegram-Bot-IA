@@ -4,8 +4,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { DocumentIngestor } from '../src/modules/DocumentIngestor';
-import type { DocumentIngestorConfig, StorageResult } from '../src/modules/Interfaces';
+import { FileDocumentIngestor } from '../src/infrastructure/services/FileDocumentIngestor';
+import type { IDocumentIngestorConfig, IStorageResult } from '../src/domain/interfaces/IDocumentIngestor';
 import fs from 'fs-extra';
 import axios from 'axios';
 import path from 'path';
@@ -14,8 +14,8 @@ import path from 'path';
 vi.mock('axios');
 
 describe('DocumentIngestor', () => {
-  let ingestor: DocumentIngestor;
-  let testConfig: DocumentIngestorConfig;
+  let ingestor: FileDocumentIngestor;
+  let testConfig: IDocumentIngestorConfig;
   const testTempPath = path.join(process.cwd(), 'test', 'temp-test-files');
 
   beforeEach(async () => {
@@ -29,7 +29,7 @@ describe('DocumentIngestor', () => {
     // Asegurar que el directorio de prueba existe
     await fs.ensureDir(testTempPath);
 
-    ingestor = new DocumentIngestor(testConfig);
+    ingestor = new FileDocumentIngestor(testConfig);
   });
 
   afterEach(async () => {
@@ -45,7 +45,7 @@ describe('DocumentIngestor', () => {
       const newPath = path.join(testTempPath, 'new-dir');
       const config = { ...testConfig, tempStoragePath: newPath };
 
-      new DocumentIngestor(config);
+      new FileDocumentIngestor(config);
 
       // Esperar un momento para que se ejecute el ensure
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -371,7 +371,7 @@ describe('DocumentIngestor', () => {
   describe('Configuración personalizada', () => {
     it('debería respetar maxFileSizeMB configurado', async () => {
       const smallLimitConfig = { ...testConfig, maxFileSizeMB: 1 };
-      const smallIngestor = new DocumentIngestor(smallLimitConfig);
+      const smallIngestor = new FileDocumentIngestor(smallLimitConfig);
 
       const buffer = Buffer.alloc(2 * 1024 * 1024); // 2MB
       const result = await smallIngestor.storeBuffer(buffer, 1, 1, '.jpg');
@@ -385,7 +385,7 @@ describe('DocumentIngestor', () => {
         ...testConfig,
         supportedFormats: ['jpg', 'jpeg'],
       };
-      const limitedIngestor = new DocumentIngestor(limitedFormatsConfig);
+      const limitedIngestor = new FileDocumentIngestor(limitedFormatsConfig);
 
       const pdfBuffer = Buffer.from([0x25, 0x50, 0x44, 0x46]);
       const result = await limitedIngestor.storeBuffer(pdfBuffer, 1, 1, '.pdf');
@@ -397,7 +397,7 @@ describe('DocumentIngestor', () => {
     it('debería usar tempStoragePath configurado', async () => {
       const customPath = path.join(testTempPath, 'custom');
       const customConfig = { ...testConfig, tempStoragePath: customPath };
-      const customIngestor = new DocumentIngestor(customConfig);
+      const customIngestor = new FileDocumentIngestor(customConfig);
 
       await new Promise(resolve => setTimeout(resolve, 100));
 

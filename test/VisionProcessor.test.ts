@@ -4,8 +4,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { VisionProcessor } from '../src/modules/VisionProcessor';
-import type { VisionProcessorConfig, ImageProcessingOptions } from '../src/modules/Interfaces';
+import { OpenAIVisionProcessor } from '../src/infrastructure/services/OpenAIVisionProcessor';
+import type { IVisionProcessorConfig, IIImageProcessingOptions } from '../src/domain/interfaces/IVisionProcessor';
 import fs from 'fs-extra';
 import path from 'path';
 import OpenAI from 'openai';
@@ -14,8 +14,8 @@ import OpenAI from 'openai';
 vi.mock('openai');
 
 describe('VisionProcessor', () => {
-  let processor: VisionProcessor;
-  let config: VisionProcessorConfig;
+  let processor: OpenAIVisionProcessor;
+  let config: IVisionProcessorConfig;
   let mockOpenAI: any;
   const testTempPath = path.join(process.cwd(), 'test', 'temp-vision-test');
   const testImagePath = path.join(testTempPath, 'test-image.jpg');
@@ -57,7 +57,7 @@ describe('VisionProcessor', () => {
 
   describe('Constructor', () => {
     it('debería crear instancia con configuración válida', () => {
-      processor = new VisionProcessor(config);
+      processor = new OpenAIVisionProcessor(config);
       expect(processor).toBeInstanceOf(VisionProcessor);
     });
 
@@ -66,26 +66,26 @@ describe('VisionProcessor', () => {
         apiKey: 'test-key',
         model: 'gpt-4o-mini',
       };
-      processor = new VisionProcessor(minimalConfig);
+      processor = new OpenAIVisionProcessor(minimalConfig);
       expect(processor).toBeInstanceOf(VisionProcessor);
     });
 
     it('debería activar modo demo cuando DEMO_MODE=true', () => {
       process.env.DEMO_MODE = 'true';
-      processor = new VisionProcessor(config);
+      processor = new OpenAIVisionProcessor(config);
       expect(processor).toBeInstanceOf(VisionProcessor);
     });
 
     it('debería activar modo demo cuando DEMO_MODE=1', () => {
       process.env.DEMO_MODE = '1';
-      processor = new VisionProcessor(config);
+      processor = new OpenAIVisionProcessor(config);
       expect(processor).toBeInstanceOf(VisionProcessor);
     });
   });
 
   describe('processInvoiceImage', () => {
     beforeEach(() => {
-      processor = new VisionProcessor(config);
+      processor = new OpenAIVisionProcessor(config);
 
       // Mock de respuesta exitosa de OpenAI
       const mockResponse = {
@@ -128,7 +128,7 @@ describe('VisionProcessor', () => {
     });
 
     it('debería procesar imagen exitosamente', async () => {
-      const options: ImageProcessingOptions = {
+      const options: IImageProcessingOptions = {
         imagePath: testImagePath,
         userId: 12345,
         messageId: 67890,
@@ -142,7 +142,7 @@ describe('VisionProcessor', () => {
     });
 
     it('debería llamar a OpenAI con los parámetros correctos', async () => {
-      const options: ImageProcessingOptions = {
+      const options: IImageProcessingOptions = {
         imagePath: testImagePath,
         userId: 12345,
         messageId: 67890,
@@ -160,7 +160,7 @@ describe('VisionProcessor', () => {
     });
 
     it('debería incluir sistema prompt correcto', async () => {
-      const options: ImageProcessingOptions = {
+      const options: IImageProcessingOptions = {
         imagePath: testImagePath,
         userId: 12345,
         messageId: 67890,
@@ -174,7 +174,7 @@ describe('VisionProcessor', () => {
     });
 
     it('debería incluir imagen en base64', async () => {
-      const options: ImageProcessingOptions = {
+      const options: IImageProcessingOptions = {
         imagePath: testImagePath,
         userId: 12345,
         messageId: 67890,
@@ -195,7 +195,7 @@ describe('VisionProcessor', () => {
     });
 
     it('debería retornar error si imagen no existe', async () => {
-      const options: ImageProcessingOptions = {
+      const options: IImageProcessingOptions = {
         imagePath: path.join(testTempPath, 'nonexistent.jpg'),
         userId: 12345,
         messageId: 67890,
@@ -212,7 +212,7 @@ describe('VisionProcessor', () => {
         new Error('API Error')
       );
 
-      const options: ImageProcessingOptions = {
+      const options: IImageProcessingOptions = {
         imagePath: testImagePath,
         userId: 12345,
         messageId: 67890,
@@ -235,7 +235,7 @@ describe('VisionProcessor', () => {
         ],
       });
 
-      const options: ImageProcessingOptions = {
+      const options: IImageProcessingOptions = {
         imagePath: testImagePath,
         userId: 12345,
         messageId: 67890,
@@ -262,7 +262,7 @@ describe('VisionProcessor', () => {
         ],
       });
 
-      const options: ImageProcessingOptions = {
+      const options: IImageProcessingOptions = {
         imagePath: testImagePath,
         userId: 12345,
         messageId: 67890,
@@ -275,7 +275,7 @@ describe('VisionProcessor', () => {
     });
 
     it('debería incluir userId y messageId en el resultado', async () => {
-      const options: ImageProcessingOptions = {
+      const options: IImageProcessingOptions = {
         imagePath: testImagePath,
         userId: 99999,
         messageId: 11111,
@@ -299,7 +299,7 @@ describe('VisionProcessor', () => {
         const filePath = path.join(testTempPath, `test${ext}`);
         await fs.writeFile(filePath, Buffer.from([0x00, 0x01, 0x02]));
 
-        const options: ImageProcessingOptions = {
+        const options: IImageProcessingOptions = {
           imagePath: filePath,
           userId: 12345,
           messageId: 67890,
@@ -313,7 +313,7 @@ describe('VisionProcessor', () => {
     });
 
     it('debería incluir detail level cuando está especificado', async () => {
-      const options: ImageProcessingOptions = {
+      const options: IImageProcessingOptions = {
         imagePath: testImagePath,
         userId: 12345,
         messageId: 67890,
@@ -333,9 +333,9 @@ describe('VisionProcessor', () => {
   describe('Modo Demo', () => {
     it('debería retornar datos simulados en modo demo', async () => {
       process.env.DEMO_MODE = 'true';
-      processor = new VisionProcessor(config);
+      processor = new OpenAIVisionProcessor(config);
 
-      const options: ImageProcessingOptions = {
+      const options: IImageProcessingOptions = {
         imagePath: testImagePath,
         userId: 12345,
         messageId: 67890,
@@ -350,9 +350,9 @@ describe('VisionProcessor', () => {
 
     it('no debería llamar a OpenAI API en modo demo', async () => {
       process.env.DEMO_MODE = 'true';
-      processor = new VisionProcessor(config);
+      processor = new OpenAIVisionProcessor(config);
 
-      const options: ImageProcessingOptions = {
+      const options: IImageProcessingOptions = {
         imagePath: testImagePath,
         userId: 12345,
         messageId: 67890,
@@ -365,15 +365,15 @@ describe('VisionProcessor', () => {
 
     it('debería generar diferentes datos simulados para diferentes usuarios', async () => {
       process.env.DEMO_MODE = 'true';
-      processor = new VisionProcessor(config);
+      processor = new OpenAIVisionProcessor(config);
 
-      const options1: ImageProcessingOptions = {
+      const options1: IImageProcessingOptions = {
         imagePath: testImagePath,
         userId: 11111,
         messageId: 1,
       };
 
-      const options2: ImageProcessingOptions = {
+      const options2: IImageProcessingOptions = {
         imagePath: testImagePath,
         userId: 22222,
         messageId: 2,
@@ -388,7 +388,7 @@ describe('VisionProcessor', () => {
 
   describe('Manejo de errores', () => {
     beforeEach(() => {
-      processor = new VisionProcessor(config);
+      processor = new OpenAIVisionProcessor(config);
     });
 
     it('debería manejar error de rate limit', async () => {
@@ -396,7 +396,7 @@ describe('VisionProcessor', () => {
       error.status = 429;
       mockOpenAI.chat.completions.create.mockRejectedValue(error);
 
-      const options: ImageProcessingOptions = {
+      const options: IImageProcessingOptions = {
         imagePath: testImagePath,
         userId: 12345,
         messageId: 67890,
@@ -413,7 +413,7 @@ describe('VisionProcessor', () => {
       error.status = 401;
       mockOpenAI.chat.completions.create.mockRejectedValue(error);
 
-      const options: ImageProcessingOptions = {
+      const options: IImageProcessingOptions = {
         imagePath: testImagePath,
         userId: 12345,
         messageId: 67890,
@@ -430,7 +430,7 @@ describe('VisionProcessor', () => {
       error.code = 'ETIMEDOUT';
       mockOpenAI.chat.completions.create.mockRejectedValue(error);
 
-      const options: ImageProcessingOptions = {
+      const options: IImageProcessingOptions = {
         imagePath: testImagePath,
         userId: 12345,
         messageId: 67890,
@@ -447,7 +447,7 @@ describe('VisionProcessor', () => {
         choices: [],
       });
 
-      const options: ImageProcessingOptions = {
+      const options: IImageProcessingOptions = {
         imagePath: testImagePath,
         userId: 12345,
         messageId: 67890,
@@ -467,7 +467,7 @@ describe('VisionProcessor', () => {
         ],
       });
 
-      const options: ImageProcessingOptions = {
+      const options: IImageProcessingOptions = {
         imagePath: testImagePath,
         userId: 12345,
         messageId: 67890,
@@ -481,7 +481,7 @@ describe('VisionProcessor', () => {
 
   describe('Validación de schema Zod', () => {
     beforeEach(() => {
-      processor = new VisionProcessor(config);
+      processor = new OpenAIVisionProcessor(config);
     });
 
     it('debería rechazar fecha con formato inválido', async () => {
@@ -513,7 +513,7 @@ describe('VisionProcessor', () => {
         ],
       });
 
-      const options: ImageProcessingOptions = {
+      const options: IImageProcessingOptions = {
         imagePath: testImagePath,
         userId: 12345,
         messageId: 67890,
@@ -553,7 +553,7 @@ describe('VisionProcessor', () => {
         ],
       });
 
-      const options: ImageProcessingOptions = {
+      const options: IImageProcessingOptions = {
         imagePath: testImagePath,
         userId: 12345,
         messageId: 67890,
@@ -586,7 +586,7 @@ describe('VisionProcessor', () => {
         ],
       });
 
-      const options: ImageProcessingOptions = {
+      const options: IImageProcessingOptions = {
         imagePath: testImagePath,
         userId: 12345,
         messageId: 67890,
@@ -600,7 +600,7 @@ describe('VisionProcessor', () => {
 
   describe('Edge Cases', () => {
     beforeEach(() => {
-      processor = new VisionProcessor(config);
+      processor = new OpenAIVisionProcessor(config);
 
       // Mock de respuesta válida por defecto
       mockOpenAI.chat.completions.create.mockResolvedValue({
@@ -637,7 +637,7 @@ describe('VisionProcessor', () => {
       const largeBuffer = Buffer.alloc(10 * 1024 * 1024); // 10MB
       await fs.writeFile(largePath, largeBuffer);
 
-      const options: ImageProcessingOptions = {
+      const options: IImageProcessingOptions = {
         imagePath: largePath,
         userId: 12345,
         messageId: 67890,
@@ -653,7 +653,7 @@ describe('VisionProcessor', () => {
       const specialPath = path.join(testTempPath, 'test (special).jpg');
       await fs.writeFile(specialPath, Buffer.from([0xFF, 0xD8, 0xFF, 0xE0]));
 
-      const options: ImageProcessingOptions = {
+      const options: IImageProcessingOptions = {
         imagePath: specialPath,
         userId: 12345,
         messageId: 67890,

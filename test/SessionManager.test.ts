@@ -4,38 +4,41 @@
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { SessionManager } from '../src/modules/SessionManager';
-import type { Invoice } from '../src/modules/Interfaces';
+import { InMemoryInvoiceRepository } from '../src/infrastructure/repositories/InMemoryInvoiceRepository';
+import { Invoice } from '../src/domain/entities/Invoice.entity';
 
 describe('SessionManager', () => {
-  let sessionManager: SessionManager;
+  let sessionManager: InMemoryInvoiceRepository;
 
   // Helper para crear una factura de prueba
-  const createMockInvoice = (invoiceNumber: string, amount: number = 1000): Invoice => ({
-    invoiceNumber,
-    date: '2025-11-03',
-    vendor: {
-      name: 'Test Vendor',
-      taxId: '30-12345678-9',
-    },
-    totalAmount: amount,
-    currency: 'ARS',
-    items: [
-      {
-        description: 'Test Item',
-        quantity: 1,
-        unitPrice: amount,
-        subtotal: amount,
+  const createMockInvoice = (invoiceNumber: string, amount: number = 1000): Invoice => {
+    return Invoice.create({
+      invoiceNumber,
+      date: '2025-11-03',
+      vendor: {
+        name: 'Test Vendor',
+        taxId: '30-12345678-9',
       },
-    ],
-    metadata: {
-      processedAt: '2025-11-03T10:00:00Z',
-      processingTimeMs: 1000,
-    },
-  });
+      totalAmount: amount,
+      currency: 'ARS',
+      items: [
+        {
+          description: 'Test Item',
+          quantity: 1,
+          unitPrice: amount,
+          subtotal: amount,
+        },
+      ],
+      metadata: {
+        processedAt: '2025-11-03T10:00:00Z',
+        processingTimeMs: 1000,
+        confidence: 'high',
+      },
+    });
+  };
 
   beforeEach(() => {
-    sessionManager = new SessionManager(30); // 30 minutos de timeout
+    sessionManager = new InMemoryInvoiceRepository(30); // 30 minutos de timeout
   });
 
   describe('addInvoice', () => {
