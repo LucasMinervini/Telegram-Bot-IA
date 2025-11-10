@@ -349,6 +349,21 @@ export class TelegramBotController {
         );
 
         this.logger.success(`Excel generated and sent to user ${userId}`);
+        
+        // ✅ SOLUCIÓN: Limpiar el panel de control después de descargar
+        // Esto fuerza la creación de un nuevo panel cuando se procesen más comprobantes
+        const controlMessageId = this.controlMessages.get(userId);
+        if (controlMessageId && ctx.chat) {
+          try {
+            await ctx.telegram.deleteMessage(ctx.chat.id, controlMessageId);
+            this.logger.debug(`Control panel message deleted after Excel download for user ${userId}`);
+          } catch (error) {
+            // Ignore if message is already deleted
+            this.logger.warn(`Could not delete control panel message: ${error}`);
+          }
+        }
+        this.controlMessages.delete(userId);
+        this.logger.info(`Control panel reset for user ${userId} - ready for new invoices`);
       } else {
         await ctx.reply('❌ Error al generar el archivo Excel. Por favor, intenta nuevamente.');
       }
@@ -398,6 +413,12 @@ export class TelegramBotController {
     );
 
     await ctx.reply(summaryText, { parse_mode: 'Markdown' });
+    
+    // ✅ Mantener el panel de control visible después de mostrar el resumen
+    if (sessionInfo.hasSession && sessionInfo.invoiceCount > 0) {
+      this.logger.debug(`Refreshing control panel after showing summary for user ${userId}`);
+      await this.updateControlPanel(ctx, userId, sessionInfo.invoiceCount);
+    }
   }
 
   // ========================================
@@ -405,7 +426,12 @@ export class TelegramBotController {
   // ========================================
 
   private async updateControlPanel(ctx: Context, userId: number, totalInvoices: number): Promise<void> {
-    if (!ctx.chat) return;
+    if (!ctx.chat) {
+      this.logger.warn(`No chat context for user ${userId}, cannot update control panel`);
+      return;
+    }
+
+    this.logger.debug(`Scheduling control panel update for user ${userId} (${totalInvoices} invoices)`);
 
     this.pendingUpdates.set(userId, { 
       chatId: ctx.chat.id, 
@@ -414,22 +440,33 @@ export class TelegramBotController {
 
     const existingTimeout = this.controlPanelUpdateQueue.get(userId);
     if (existingTimeout) {
+      this.logger.debug(`Clearing existing timeout for user ${userId}`);
       clearTimeout(existingTimeout);
     }
 
     const timeout = setTimeout(async () => {
-      const updateInfo = this.pendingUpdates.get(userId);
-      if (updateInfo) {
-        await this.performControlPanelUpdate(updateInfo.chatId, userId, updateInfo.totalInvoices);
-        this.pendingUpdates.delete(userId);
+      try {
+        this.logger.info(`Executing control panel update for user ${userId}`);
+        const updateInfo = this.pendingUpdates.get(userId);
+        if (updateInfo) {
+          await this.performControlPanelUpdate(updateInfo.chatId, userId, updateInfo.totalInvoices);
+          this.pendingUpdates.delete(userId);
+        } else {
+          this.logger.warn(`No pending update found for user ${userId}`);
+        }
+      } catch (error: any) {
+        this.logger.error(`Error in control panel timeout callback: ${error.message}`);
+      } finally {
+        this.controlPanelUpdateQueue.delete(userId);
       }
-      this.controlPanelUpdateQueue.delete(userId);
-    }, 500);
+    }, 2000); // Increased to 2 seconds for more reliable updates
 
     this.controlPanelUpdateQueue.set(userId, timeout);
   }
 
   private async performControlPanelUpdate(chatId: number, userId: number, totalInvoices: number): Promise<void> {
+    this.logger.info(`▶️ Starting control panel update for user ${userId} with ${totalInvoices} invoices`);
+    
     const messageText = MessageFormatter.controlPanelMessage(totalInvoices);
 
     const keyboard = Markup.inlineKeyboard([
@@ -444,42 +481,65 @@ export class TelegramBotController {
 
     try {
       if (existingMessageId) {
-        await this.bot.telegram.editMessageText(
-          chatId,
-          existingMessageId,
-          undefined,
-          messageText,
-          { 
-            parse_mode: 'Markdown',
-            reply_markup: keyboard.reply_markup
+        this.logger.debug(`Attempting to edit existing control panel message ID: ${existingMessageId}`);
+        try {
+          await this.bot.telegram.editMessageText(
+            chatId,
+            existingMessageId,
+            undefined,
+            messageText,
+            { 
+              parse_mode: 'Markdown',
+              reply_markup: keyboard.reply_markup
+            }
+          );
+          this.logger.success(`✅ Control panel UPDATED for user ${userId} (${totalInvoices} invoices)`);
+          return; // Success, exit early
+        } catch (editError: any) {
+          // If edit fails, delete old message before creating new one
+          this.logger.warn(`⚠️ Failed to edit control panel: ${editError.message}. Deleting old and creating new...`);
+          try {
+            await this.bot.telegram.deleteMessage(chatId, existingMessageId);
+            this.logger.debug(`Old control panel message deleted`);
+          } catch (deleteError: any) {
+            this.logger.warn(`Could not delete old message: ${deleteError.message}`);
           }
-        );
-        this.logger.info(`Control panel updated for user ${userId} (${totalInvoices} invoices)`);
-      } else {
+          this.controlMessages.delete(userId);
+        }
+      }
+      
+      // Send new message (either no existing message or edit failed)
+      this.logger.debug(`Sending new control panel message to chat ${chatId}`);
+      const sentMessage = await this.bot.telegram.sendMessage(
+        chatId,
+        messageText,
+        {
+          parse_mode: 'Markdown',
+          ...keyboard
+        }
+      );
+      this.controlMessages.set(userId, sentMessage.message_id);
+      this.logger.success(`✅ Control panel CREATED for user ${userId} (${totalInvoices} invoices)`);
+      
+    } catch (error: any) {
+      this.logger.error(`❌ Error in control panel: ${error.message}`);
+      
+      // Final fallback: try one more time after a delay
+      try {
+        this.logger.info(`Attempting fallback retry...`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
         const sentMessage = await this.bot.telegram.sendMessage(
           chatId,
           messageText,
-          keyboard
+          {
+            parse_mode: 'Markdown',
+            ...keyboard
+          }
         );
         this.controlMessages.set(userId, sentMessage.message_id);
-        this.logger.info(`Control panel created for user ${userId} (${totalInvoices} invoices)`);
-      }
-    } catch (error: any) {
-      this.logger.error(`Error in control panel: ${error.message}`);
-      
-      if (error.response?.error_code === 400 || error.response?.error_code === 429) {
-        try {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          const sentMessage = await this.bot.telegram.sendMessage(
-            chatId,
-            messageText,
-            keyboard
-          );
-          this.controlMessages.set(userId, sentMessage.message_id);
-          this.logger.info(`Control panel recreated for user ${userId}`);
-        } catch (retryError: any) {
-          this.logger.error('Error creating control panel:', retryError.message);
-        }
+        this.logger.success(`✅ Control panel created (fallback) for user ${userId}`);
+      } catch (retryError: any) {
+        this.logger.error(`❌ Fallback also failed: ${retryError.message}`);
       }
     }
   }

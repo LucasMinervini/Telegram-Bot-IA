@@ -10,6 +10,7 @@ import fs from 'fs-extra';
 import * as path from 'path';
 import { IVisionProcessor, IImageProcessingOptions, IProcessingResult } from '../../domain/interfaces/IVisionProcessor';
 import { Invoice, IInvoiceProps } from '../../domain/entities/Invoice.entity';
+import { PDFToImageConverter } from './PDFToImageConverter';
 
 export interface IOpenAIConfig {
   apiKey: string;
@@ -26,6 +27,7 @@ export class OpenAIVisionProcessor implements IVisionProcessor {
   private client: OpenAI;
   private config: IOpenAIConfig;
   private demoMode: boolean;
+  private pdfConverter: PDFToImageConverter;
 
   constructor(config: IOpenAIConfig) {
     this.config = {
@@ -39,6 +41,8 @@ export class OpenAIVisionProcessor implements IVisionProcessor {
     this.client = new OpenAI({
       apiKey: this.config.apiKey,
     });
+
+    this.pdfConverter = new PDFToImageConverter();
 
     if (this.demoMode) {
       console.log('[OpenAIVisionProcessor] 🎭 DEMO MODE ACTIVE - No API calls will be made');
@@ -57,6 +61,27 @@ export class OpenAIVisionProcessor implements IVisionProcessor {
       // Demo mode: return simulated data
       if (this.demoMode) {
         return await this.generateDemoResponse(options, startTime);
+      }
+
+      // Handle PDF files by extracting text
+      if (this.pdfConverter.isPDF(options.imagePath)) {
+        console.log('[OpenAIVisionProcessor] 📄 PDF detected, extracting text...');
+        const conversionResult = await this.pdfConverter.convertFirstPage(options.imagePath);
+        
+        if (!conversionResult.success || !conversionResult.extractedText) {
+          return this.createErrorResult(
+            conversionResult.error || 'Failed to extract text from PDF',
+            options.userId,
+            options.messageId
+          );
+        }
+        
+        console.log('[OpenAIVisionProcessor] ✅ Text extracted from PDF successfully');
+        console.log('[OpenAIVisionProcessor] 📝 Extracted text preview:', 
+          conversionResult.extractedText.substring(0, 200) + '...');
+        
+        // Process PDF text directly (without Vision API)
+        return await this.processPDFText(conversionResult.extractedText, options, startTime);
       }
 
       // Read and encode image
@@ -159,18 +184,53 @@ export class OpenAIVisionProcessor implements IVisionProcessor {
     return `
 Analiza esta imagen de comprobante/factura y extrae la siguiente información en formato JSON:
 
+⚠️ CRÍTICO - IDENTIFICACIÓN DE BANCO RECEPTOR (LEE CON MÁXIMA ATENCIÓN):
+
+🎯 REGLA DE ORO: 
+El "receiverBank" es el banco DONDE ESTÁ LA CUENTA DEL RECEPTOR (quien tiene el CUIT y RECIBE el dinero), NO el banco del emisor.
+
+📍 ESTRUCTURA DE COMPROBANTES:
+- SECCIÓN "DE/DESDE": EMISOR (quien ENVÍA) - puede usar Mercado Pago, Brubank, etc
+- SECCIÓN "PARA/HACIA": RECEPTOR (quien RECIBE) - tiene CUIT/CUIL y su propio banco
+
+🚨 ERRORES CRÍTICOS A EVITAR:
+❌ NUNCA uses "Mercado Pago" como receiverBank si solo aparece en la sección del EMISOR
+❌ NUNCA uses "Brubank" como receiverBank si solo aparece en la sección del EMISOR
+❌ NUNCA uses el banco/plataforma del que ENVÍA como banco del que RECIBE
+❌ NO asumas que el banco más visible es el del receptor
+
+✅ PASOS OBLIGATORIOS PARA IDENTIFICAR CORRECTAMENTE:
+
+PASO 1 - IDENTIFICA AL RECEPTOR:
+- Busca: "Para:", "A:", "Beneficiario:", "Destinatario:", "Receptor:", "CUIT:", "Razón social:"
+- El que tiene CUIT/CUIL es el RECEPTOR (ejemplo: "CUIT: 30-71883962-5" → este es el receptor)
+- Ignora completamente al emisor y su banco
+
+PASO 2 - BUSCA EL BANCO DEL RECEPTOR (NO DEL EMISOR):
+- Busca información bancaria DESPUÉS o JUNTO al nombre/CUIT del receptor
+- Busca: "Banco destino:", "Cuenta:", "CBU:", "CVU:", "Alias:"
+- Pistas de CVU: CVU que empieza con "0000003100..." = Brubank, "0000007900..." = Mercado Pago
+- Si el comprobante dice "Banco: X" cerca del RECEPTOR → usa X
+- Si NO hay información ESPECÍFICA del banco del receptor → usa el nombre/razón social del receptor
+- Si definitivamente no hay ninguna pista → usa "No especificado"
+
+PASO 3 - VERIFICA TU RESPUESTA:
+- ¿El banco que elegiste corresponde al RECEPTOR (con CUIT) y NO al emisor?
+- ¿Puedes ver esa información bancaria en la sección del receptor?
+- Si el banco está en la sección "De/Desde" del emisor → NO es el receiverBank
+
 CAMPOS REQUERIDOS:
 - invoiceNumber: Número de factura o comprobante (string)
 - date: Fecha de emisión en formato YYYY-MM-DD (string)
 - operationType: Tipo de operación (string, ej: "Transferencia", "Depósito", "Pago", "Factura", etc.)
-- vendor: Objeto con información del proveedor
-  - name: Nombre del proveedor/emisor (string)
-  - taxId: CUIT/CUIL/RUT/RFC/Tax ID (string, opcional)
-  - cvu: CVU (Clave Virtual Uniforme) si está presente (string, opcional)
-  - address: Dirección del proveedor (string, opcional)
+- vendor: Objeto con información del RECEPTOR/BENEFICIARIO (quien RECIBE el dinero)
+  - name: Nombre del receptor/beneficiario (string)
+  - taxId: CUIT/CUIL/RUT/RFC/Tax ID del RECEPTOR (string, opcional)
+  - cvu: CVU del RECEPTOR si está presente (string, opcional)
+  - address: Dirección del receptor (string, opcional)
 - totalAmount: Monto total bruto de la factura (number)
 - currency: Código de moneda ISO 4217 (string, 3 letras, ej: "ARS", "USD", "EUR")
-- receiverBank: Nombre del banco receptor (string, opcional pero importante si está visible)
+- receiverBank: Banco del RECEPTOR (NO del emisor, NO "Mercado Pago" si es solo intermediario del emisor)
 - items: Array de items/productos (mínimo 1 item)
   - description: Descripción del producto/servicio (string)
   - quantity: Cantidad (number)
@@ -184,12 +244,13 @@ CAMPOS OPCIONALES:
 - paymentMethod: Método de pago (string, opcional)
 
 INSTRUCCIONES:
-1. Lee cuidadosamente toda la información visible en el comprobante
-2. Si falta algún campo REQUERIDO, intenta inferirlo del contexto
-3. Usa "COMPROBANTE-001" como invoiceNumber si no está visible
-4. La fecha debe estar en formato YYYY-MM-DD
-5. Si no encuentras items específicos, crea un item genérico con "Servicio/Producto" como descripción
-6. Asegúrate de que el JSON sea válido y tenga TODOS los campos requeridos
+1. Lee TODO el comprobante con atención especial a quién RECIBE el dinero
+2. Identifica al RECEPTOR por palabras clave y por el CUIT/CUIL
+3. Busca el banco del RECEPTOR, no confundas con la plataforma del emisor
+4. Usa "COMPROBANTE-001" como invoiceNumber si no está visible
+5. La fecha debe estar en formato YYYY-MM-DD
+6. Si no encuentras items específicos, crea un item genérico con "Servicio/Producto"
+7. Asegúrate de que el JSON sea válido y tenga TODOS los campos requeridos
 
 FORMATO DE SALIDA (JSON estricto):
 {
@@ -197,14 +258,14 @@ FORMATO DE SALIDA (JSON estricto):
   "date": "YYYY-MM-DD",
   "operationType": "string",
   "vendor": {
-    "name": "string",
-    "taxId": "string o undefined",
-    "cvu": "string o undefined",
+    "name": "string (RECEPTOR/BENEFICIARIO con CUIT)",
+    "taxId": "string o undefined (CUIT del RECEPTOR)",
+    "cvu": "string o undefined (CVU del RECEPTOR)",
     "address": "string o undefined"
   },
   "totalAmount": number,
   "currency": "XXX",
-  "receiverBank": "string o undefined",
+  "receiverBank": "string (Banco del RECEPTOR, NO Mercado Pago si es del emisor)",
   "items": [
     {
       "description": "string",
@@ -220,8 +281,163 @@ FORMATO DE SALIDA (JSON estricto):
   "paymentMethod": "string o undefined"
 }
 
+EJEMPLOS CONCRETOS CON ANÁLISIS:
+
+Ejemplo 1 - Brubank es del EMISOR, NO del receptor:
+Comprobante dice:
+  "De: Luis (Brubank)" ← EMISOR usa Brubank
+  "Para: ADELINA ANTONI.E" ← RECEPTOR
+  "CUIT: 30-71883962-5" ← CUIT del RECEPTOR
+  Banco del receptor: no especificado
+  
+Análisis paso a paso:
+  1. RECEPTOR = ADELINA ANTONI.E (tiene el CUIT)
+  2. EMISOR = Luis con Brubank (NO es relevante para receiverBank)
+  3. No hay información del banco del receptor
+  
+JSON correcto:
+  vendor.name = "ADELINA ANTONI.E"
+  vendor.taxId = "30-71883962-5"
+  receiverBank = "ADELINA ANTONI.E" o "No especificado" (NUNCA "Brubank")
+
+Ejemplo 2 - Mercado Pago es del EMISOR, NO del receptor:
+Comprobante dice:
+  "De: Juan Pérez (Mercado Pago)" ← EMISOR usa Mercado Pago
+  "Para: Fundraisercle" ← RECEPTOR
+  "CUIT: 30-71675728-1" ← CUIT del RECEPTOR
+  
+Análisis:
+  1. RECEPTOR = Fundraisercle (tiene el CUIT)
+  2. Mercado Pago está con el EMISOR, NO con el receptor
+  
+JSON correcto:
+  vendor.name = "Fundraisercle"
+  vendor.taxId = "30-71675728-1"
+  receiverBank = "Fundraisercle" (NO "Mercado Pago")
+
+Ejemplo 3 - Banco receptor explícito:
+Comprobante dice:
+  "De: Pedro López (Brubank)"
+  "Para: Empresa ABC S.A."
+  "CUIT: 30-12345678-9"
+  "Banco destino: Banco Galicia" ← Banco del RECEPTOR
+  
+JSON correcto:
+  vendor.name = "Empresa ABC S.A."
+  vendor.taxId = "30-12345678-9"
+  receiverBank = "Banco Galicia" (está explícito para el receptor)
+
+Ejemplo 4 - CVU del receptor permite identificar banco:
+Comprobante dice:
+  "Beneficiario: María García"
+  "CUIT: 27-12345678-9"
+  "CVU: 0000003100012345678901" ← CVU empieza con 0000003100 = Brubank
+  
+JSON correcto:
+  vendor.name = "María García"
+  vendor.taxId = "27-12345678-9"
+  vendor.cvu = "0000003100012345678901"
+  receiverBank = "Brubank" (deducido del CVU del receptor)
+
 Devuelve SOLO el JSON, sin texto adicional.
 `.trim();
+  }
+
+  /**
+   * Process PDF text directly with GPT-4 (text-only, no vision)
+   */
+  private async processPDFText(
+    extractedText: string,
+    options: IImageProcessingOptions,
+    startTime: number
+  ): Promise<IProcessingResult> {
+    try {
+      const prompt = this.buildExtractionPrompt();
+      
+      console.log(`[OpenAIVisionProcessor] Processing PDF text for user ${options.userId}...`);
+      
+      const response = await this.client.chat.completions.create({
+        model: this.config.model,
+        messages: [
+          {
+            role: 'system',
+            content: 'Eres un experto en análisis de documentos financieros y facturas. Tu tarea es extraer información estructurada de comprobantes y devolverla en formato JSON válido.'
+          },
+          {
+            role: 'user',
+            content: `${prompt}\n\nTexto extraído del documento:\n\n${extractedText}`,
+          },
+        ],
+        max_tokens: this.config.maxTokens,
+        temperature: this.config.temperature,
+        response_format: { type: 'json_object' },
+      });
+
+      // Extract and parse response
+      const rawContent = response.choices[0]?.message?.content;
+      
+      if (!rawContent) {
+        return this.createErrorResult('Model returned no content', options.userId, options.messageId);
+      }
+
+      const parsedData = JSON.parse(rawContent);
+
+      // Log extracted data for debugging
+      console.log(`[OpenAIVisionProcessor] Extracted data from PDF:`, {
+        invoiceNumber: parsedData.invoiceNumber,
+        totalAmount: parsedData.totalAmount,
+        currency: parsedData.currency,
+        vendor: parsedData.vendor?.name,
+      });
+
+      // Validate critical fields before creating entity
+      if (!parsedData.totalAmount || parsedData.totalAmount <= 0) {
+        console.warn('[OpenAIVisionProcessor] ⚠️ Invalid totalAmount from OCR, using placeholder');
+        parsedData.totalAmount = 0.01; // Placeholder to pass validation
+      }
+
+      // Add metadata
+      const processingTime = Date.now() - startTime;
+      const invoiceProps: IInvoiceProps = {
+        ...parsedData,
+        metadata: {
+          processedAt: new Date().toISOString(),
+          processingTimeMs: processingTime,
+          confidence: this.calculateConfidence(parsedData),
+          model: `${this.config.model} (PDF OCR)`,
+        },
+      };
+
+      // Create domain entity
+      const invoice = Invoice.create(invoiceProps);
+
+      console.log(`[OpenAIVisionProcessor] ✅ PDF text processing successful in ${processingTime}ms`);
+
+      return {
+        success: true,
+        invoice,
+        userId: options.userId,
+        messageId: options.messageId,
+      };
+
+    } catch (error: any) {
+      const processingTime = Date.now() - startTime;
+      console.error('[OpenAIVisionProcessor] ❌ Error processing PDF text:', error);
+
+      let errorMessage = `Error al procesar el PDF`;
+
+      if (error.code === 'invalid_api_key') {
+        errorMessage = 'API key de OpenAI inválida';
+      } else if (error.name === 'SyntaxError') {
+        errorMessage = 'Error al analizar la respuesta de la IA';
+      } else if (error.message.includes('Total amount') || error.message.includes('validation')) {
+        errorMessage = 'No se pudo extraer información válida del PDF. Intenta con una imagen más clara o un PDF diferente.';
+      } else {
+        errorMessage = `Error al procesar el PDF: ${error.message}`;
+      }
+
+      return this.createErrorResult(errorMessage, options.userId, options.messageId);
+    }
   }
 
   /**

@@ -147,18 +147,22 @@ export class ExcelJSGenerator implements IExcelGenerator {
     
     const tipoOperacion = invoice.operationType || this.extractOperationType(invoice.paymentMethod);
     
-    // Determine which identifier to use: CVU > taxId > name
+    // CUIT column should prioritize taxId (actual CUIT), not CVU
+    // Priority: taxId (CUIT) > name as fallback
     let cuit = '';
-    if (invoice.vendor.cvu) {
-      cuit = invoice.vendor.cvu;
-    } else if (invoice.vendor.taxId) {
+    if (invoice.vendor.taxId) {
       cuit = invoice.vendor.taxId;
     } else {
       cuit = invoice.vendor.name;
     }
     
+    // Replace undefined/empty values with friendly message
+    cuit = this.sanitizeValue(cuit);
+    
     const montoBruto = invoice.totalAmount;
-    const bancoReceptor = invoice.receiverBank || this.extractBankName(invoice.vendor.name);
+    const bancoReceptor = this.sanitizeValue(
+      invoice.receiverBank || this.extractBankName(invoice.vendor.name)
+    );
 
     return {
       fecha: dateFormatted,
@@ -167,6 +171,16 @@ export class ExcelJSGenerator implements IExcelGenerator {
       montoBruto,
       bancoReceptor,
     };
+  }
+
+  /**
+   * Sanitize value - replace undefined/empty with user-friendly message
+   */
+  private sanitizeValue(value: any): string {
+    if (value === undefined || value === null || value === '' || value === 'undefined') {
+      return 'No encontrado en la factura';
+    }
+    return String(value);
   }
 
   /**
