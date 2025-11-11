@@ -33,13 +33,13 @@ export class ExcelJSGenerator implements IExcelGenerator {
       properties: { tabColor: { argb: 'FF0066CC' } },
     });
 
-    // Configure columns
+    // Configure columns with fixed widths for better UX
     worksheet.columns = [
-      { header: 'Fecha', key: 'fecha' },
-      { header: 'Tipo Operación', key: 'tipoOperacion' },
-      { header: 'Cuit', key: 'cuit' },
-      { header: 'Monto Bruto', key: 'montoBruto' },
-      { header: 'Banco receptor', key: 'bancoReceptor' },
+      { header: 'Fecha', key: 'fecha', width: 15 },
+      { header: 'Tipo Operación', key: 'tipoOperacion', width: 25 },
+      { header: 'Cuit', key: 'cuit', width: 25 },
+      { header: 'Monto Bruto', key: 'montoBruto', width: 18 },
+      { header: 'Banco receptor', key: 'bancoReceptor', width: 30 },
     ];
 
     // Style header row
@@ -114,17 +114,8 @@ export class ExcelJSGenerator implements IExcelGenerator {
       });
     });
 
-    // Auto-adjust column widths
-    worksheet.columns.forEach((column) => {
-      let maxLength = 0;
-      if (column.eachCell) {
-        column.eachCell({ includeEmpty: false }, (cell) => {
-          const cellValue = cell.value ? cell.value.toString() : '';
-          maxLength = Math.max(maxLength, cellValue.length);
-        });
-      }
-      column.width = Math.max(12, maxLength + 4);
-    });
+    // Column widths are already set in column configuration
+    // No need for auto-adjustment as we have optimized fixed widths
 
     // Generate buffer
     const buffer = await workbook.xlsx.writeBuffer();
@@ -145,13 +136,16 @@ export class ExcelJSGenerator implements IExcelGenerator {
   private invoiceToRow(invoice: Invoice): IExcelRow {
     const dateFormatted = this.formatDateForExcel(invoice.date);
     
-    const tipoOperacion = invoice.operationType || this.extractOperationType(invoice.paymentMethod);
+    // Normalize operation type
+    const tipoOperacion = this.normalizeOperationType(
+      invoice.operationType || this.extractOperationType(invoice.paymentMethod)
+    );
     
     // CUIT column should prioritize taxId (actual CUIT), not CVU
     // Priority: taxId (CUIT) > name as fallback
     let cuit = '';
     if (invoice.vendor.taxId) {
-      cuit = invoice.vendor.taxId;
+      cuit = this.formatCUIT(invoice.vendor.taxId);
     } else {
       cuit = invoice.vendor.name;
     }
@@ -160,9 +154,16 @@ export class ExcelJSGenerator implements IExcelGenerator {
     cuit = this.sanitizeValue(cuit);
     
     const montoBruto = invoice.totalAmount;
-    const bancoReceptor = this.sanitizeValue(
-      invoice.receiverBank || this.extractBankName(invoice.vendor.name)
-    );
+    
+    // Banco receptor: use LLM extraction, fallback to vendor name (who is the receiver)
+    let bancoReceptor = invoice.receiverBank || '';
+    
+    // If no explicit bank found, use vendor name (they are the money receiver)
+    if (!bancoReceptor || bancoReceptor.trim() === '') {
+      bancoReceptor = this.extractBankName(invoice.vendor.name);
+    }
+    
+    bancoReceptor = this.sanitizeValue(bancoReceptor);
 
     return {
       fecha: dateFormatted,
@@ -229,12 +230,74 @@ export class ExcelJSGenerator implements IExcelGenerator {
   }
 
   /**
-   * Extract bank name from vendor name
+   * Format CUIT with dashes (XX-XXXXXXXX-X)
+   */
+  private formatCUIT(cuit: string): string {
+    if (!cuit) return '';
+    
+    // Remove any non-digit characters and "CUIT" prefix
+    const cleaned = cuit.replace(/[^\d]/g, '').trim();
+    
+    // Check if it's a valid CUIT length (11 digits)
+    if (cleaned.length === 11) {
+      return `${cleaned.slice(0, 2)}-${cleaned.slice(2, 10)}-${cleaned.slice(10)}`;
+    }
+    
+    // If not 11 digits, return as-is (might be a different format or invalid)
+    return cuit;
+  }
+
+  /**
+   * Normalize operation type with proper capitalization
+   */
+  private normalizeOperationType(operationType: string): string {
+    if (!operationType) return 'Transferencia';
+    
+    const normalized = operationType.trim().toLowerCase();
+    
+    // Map common variations to standardized format
+    const operationMap: Record<string, string> = {
+      'transferencia': 'Transferencia',
+      'transfer': 'Transferencia',
+      'mercado pago': 'Mercado Pago',
+      'mercadopago': 'Mercado Pago',
+      'efectivo': 'Efectivo',
+      'cash': 'Efectivo',
+      'cheque': 'Cheque',
+      'tarjeta': 'Tarjeta',
+      'card': 'Tarjeta',
+      'debito': 'Débito',
+      'credito': 'Crédito',
+      'varios': 'Varios',
+      'transferencias simples': 'Transferencia',
+      'transferencias - transferencias simples': 'Transferencia',
+    };
+    
+    // Check if we have a direct match
+    if (operationMap[normalized]) {
+      return operationMap[normalized];
+    }
+    
+    // If contains "transfer", return "Transferencia"
+    if (normalized.includes('transfer')) {
+      return 'Transferencia';
+    }
+    
+    // Capitalize first letter of each word as fallback
+    return operationType
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  }
+
+  /**
+   * Extract bank/receiver name from vendor name
+   * The vendor is the receiver, so use their name as bank receptor
    */
   private extractBankName(vendorName: string): string {
     if (!vendorName) return '';
     
-    // Capitalize first letter of each word
+    // Clean and capitalize properly
     return vendorName
       .split(' ')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
