@@ -5,6 +5,8 @@ INSTRUCCIONES PARA EL DESARROLLO CON IA
 - Usar Clean Architecture (domain, application, infrastructure, presentation)
 - Toda nueva funcionalidad debe usar Dependency Injection
 - No modificar código legacy en /modules (mantener compatibilidad)
+- No Crear ficheros .md cada vez que responde.
+- 
 
 ARQUITECTURA:
 ✅ Clean Architecture + SOLID implementados

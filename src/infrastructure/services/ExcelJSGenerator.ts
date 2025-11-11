@@ -33,13 +33,13 @@ export class ExcelJSGenerator implements IExcelGenerator {
       properties: { tabColor: { argb: 'FF0066CC' } },
     });
 
-    // Configure columns with fixed widths for better UX
+    // Configure columns (widths will be auto-adjusted later)
     worksheet.columns = [
-      { header: 'Fecha', key: 'fecha', width: 15 },
-      { header: 'Tipo Operación', key: 'tipoOperacion', width: 25 },
-      { header: 'Cuit', key: 'cuit', width: 25 },
-      { header: 'Monto Bruto', key: 'montoBruto', width: 18 },
-      { header: 'Banco receptor', key: 'bancoReceptor', width: 30 },
+      { header: 'Fecha', key: 'fecha' },
+      { header: 'Tipo Operación', key: 'tipoOperacion' },
+      { header: 'Cuit', key: 'cuit' },
+      { header: 'Monto Bruto', key: 'montoBruto' },
+      { header: 'Banco receptor', key: 'bancoReceptor' },
     ];
 
     // Style header row
@@ -61,7 +61,6 @@ export class ExcelJSGenerator implements IExcelGenerator {
       cell.alignment = {
         vertical: 'middle',
         horizontal: 'center',
-        indent: 1,
       };
       cell.border = {
         top: { style: 'thin', color: { argb: 'FF000000' } },
@@ -94,11 +93,11 @@ export class ExcelJSGenerator implements IExcelGenerator {
           right: { style: 'thin', color: { argb: 'FF000000' } },
         };
 
-        // Center alignment
+        // Center alignment with text wrap for long content
         cell.alignment = { 
           vertical: 'middle', 
           horizontal: 'center',
-          indent: 1,
+          wrapText: true,
         };
 
         // Currency format for amount column
@@ -114,8 +113,8 @@ export class ExcelJSGenerator implements IExcelGenerator {
       });
     });
 
-    // Column widths are already set in column configuration
-    // No need for auto-adjustment as we have optimized fixed widths
+    // Auto-adjust column widths based on content
+    this.autoAdjustColumnWidths(worksheet);
 
     // Generate buffer
     const buffer = await workbook.xlsx.writeBuffer();
@@ -142,12 +141,16 @@ export class ExcelJSGenerator implements IExcelGenerator {
     );
     
     // CUIT column should prioritize taxId (actual CUIT), not CVU
-    // Priority: taxId (CUIT) > name as fallback
     let cuit = '';
     if (invoice.vendor.taxId) {
-      cuit = this.formatCUIT(invoice.vendor.taxId);
-    } else {
-      cuit = invoice.vendor.name;
+      const formattedCuit = this.formatCUIT(invoice.vendor.taxId);
+      // Validate if it's actually a CUIT and not a name
+      if (this.isValidCUITFormat(formattedCuit)) {
+        cuit = formattedCuit;
+      } else {
+        // If taxId is actually a name/text, treat as not found
+        cuit = '';
+      }
     }
     
     // Replace undefined/empty values with friendly message
@@ -230,6 +233,27 @@ export class ExcelJSGenerator implements IExcelGenerator {
   }
 
   /**
+   * Validate if a string is a valid CUIT format
+   */
+  private isValidCUITFormat(cuit: string): boolean {
+    if (!cuit || typeof cuit !== 'string') return false;
+    
+    // Remove dashes and spaces for validation
+    const cleaned = cuit.replace(/[-\s]/g, '');
+    
+    // Must be exactly 11 digits
+    if (cleaned.length !== 11 || !/^\d{11}$/.test(cleaned)) {
+      return false;
+    }
+    
+    // Check if it's not a suspicious pattern (like all same digits)
+    const allSame = /^(\d)\1{10}$/.test(cleaned);
+    if (allSame) return false;
+    
+    return true;
+  }
+
+  /**
    * Format CUIT with dashes (XX-XXXXXXXX-X)
    */
   private formatCUIT(cuit: string): string {
@@ -243,7 +267,7 @@ export class ExcelJSGenerator implements IExcelGenerator {
       return `${cleaned.slice(0, 2)}-${cleaned.slice(2, 10)}-${cleaned.slice(10)}`;
     }
     
-    // If not 11 digits, return as-is (might be a different format or invalid)
+    // If not 11 digits, return as-is (might be a name or invalid)
     return cuit;
   }
 
@@ -302,6 +326,52 @@ export class ExcelJSGenerator implements IExcelGenerator {
       .split(' ')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join(' ');
+  }
+
+  /**
+   * Auto-adjust column widths based on content
+   */
+  private autoAdjustColumnWidths(worksheet: ExcelJS.Worksheet): void {
+    worksheet.columns.forEach((column, colIndex) => {
+      if (!column.eachCell) return;
+      
+      let maxLength = 0;
+      
+      // Check header length
+      const header = column.header;
+      if (header && typeof header === 'string') {
+        maxLength = header.length;
+      }
+      
+      // Check all cell values in this column
+      column.eachCell({ includeEmpty: false }, (cell) => {
+        const cellValue = cell.value;
+        let cellLength = 0;
+        
+        if (cellValue !== null && cellValue !== undefined) {
+          if (typeof cellValue === 'string') {
+            cellLength = cellValue.length;
+          } else if (typeof cellValue === 'number') {
+            cellLength = cellValue.toString().length;
+          } else if (cellValue && typeof cellValue === 'object' && 'text' in cellValue) {
+            cellLength = String(cellValue.text).length;
+          } else {
+            cellLength = String(cellValue).length;
+          }
+        }
+        
+        if (cellLength > maxLength) {
+          maxLength = cellLength;
+        }
+      });
+      
+      // Set width with padding, min and max limits
+      const minWidth = 12;
+      const maxWidth = 50;
+      const padding = 3;
+      
+      column.width = Math.min(Math.max(maxLength + padding, minWidth), maxWidth);
+    });
   }
 }
 

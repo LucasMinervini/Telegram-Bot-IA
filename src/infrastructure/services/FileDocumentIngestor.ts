@@ -271,7 +271,7 @@ export class FileDocumentIngestor implements IDocumentIngestor {
    */
   static fromEnv(): FileDocumentIngestor {
     const config: IDocumentIngestorConfig = {
-      tempStoragePath: process.env.TEMP_STORAGE_PATH || './temp',
+      tempStoragePath: path.resolve(process.env.TEMP_STORAGE_PATH || './temp'),
       maxFileSizeMB: parseInt(process.env.MAX_IMAGE_SIZE_MB || '10'),
       supportedFormats: (process.env.SUPPORTED_FORMATS || 'jpg,jpeg,png,gif,webp,bmp,tiff,pdf,docx,doc,xlsx,xls,pptx,ppt').split(','),
       retentionHours: parseInt(process.env.IMAGE_RETENTION_HOURS || '0'),

@@ -34,15 +34,15 @@
     "exceljs": "^4.4.0",
     "fs-extra": "^11.2.0",
     "openai": "^4.67.3",
-    "pdf-poppler": "^0.2.3",
-    "pdfjs-dist": "^3.11.174",
+    "pdf-parse": "^1.1.1",
+    "pdf-to-png-converter": "^3.4.0",
     "telegraf": "^4.16.3",
-    "tesseract.js": "^6.0.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^24.9.2",
+    "@types/pdf-parse": "^1.1.5",
     "@vitest/coverage-v8": "^2.1.8",
     "@vitest/ui": "^2.1.8",
     "concurrently": "^9.2.1",

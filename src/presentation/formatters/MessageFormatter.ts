@@ -50,12 +50,13 @@ Este bot utiliza Inteligencia Artificial para extraer automáticamente datos de 
 3. **Revisa el resumen** con los datos extraídos
 4. **Envía más facturas** si lo deseas (se acumulan)
 5. **Descarga Excel** con el botón cuando termines
+6. **La sesión se limpia automáticamente** después de descargar
 
 **Comandos:**
 • \`/start\` - Mensaje de bienvenida
 • \`/help\` - Esta ayuda
 • \`/facturas\` - Ver cuántas facturas tienes acumuladas
-• \`/limpiar\` - Limpiar tu sesión y empezar de nuevo
+• \`/limpiar\` - Limpiar tu sesión manualmente (también se limpia automáticamente al descargar Excel)
 • \`/stats\` - Ver estadísticas del sistema
 
 **Datos extraídos:**

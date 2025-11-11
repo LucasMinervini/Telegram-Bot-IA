@@ -6,7 +6,7 @@
 
 export interface IVendor {
   name: string;
-  taxId?: string;
+  taxId: string; // Required: valid CUIT or "No figura"
   cvu?: string;
   address?: string;
 }

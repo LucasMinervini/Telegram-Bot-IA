@@ -350,8 +350,19 @@ export class TelegramBotController {
 
         this.logger.success(`Excel generated and sent to user ${userId}`);
         
-        // ✅ SOLUCIÓN: Limpiar el panel de control después de descargar
-        // Esto fuerza la creación de un nuevo panel cuando se procesen más comprobantes
+        // ✅ Auto-cleanup: Limpiar sesión después de descargar Excel
+        const clearResult = this.manageSessionUseCase.clearSession({ userId });
+        
+        if (clearResult.clearedCount > 0) {
+          await ctx.reply(
+            `✅ Sesión limpiada automáticamente: ${clearResult.clearedCount} factura(s) eliminadas.\n\n` +
+            `Puedes empezar a enviar nuevos comprobantes. 🚀`,
+            { parse_mode: 'Markdown' }
+          );
+          this.logger.info(`Session auto-cleared for user ${userId}: ${clearResult.clearedCount} invoices removed`);
+        }
+        
+        // Limpiar el panel de control
         const controlMessageId = this.controlMessages.get(userId);
         if (controlMessageId && ctx.chat) {
           try {
