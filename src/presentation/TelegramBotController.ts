@@ -29,6 +29,7 @@ export class TelegramBotController {
   private controlMessages: Map<number, number>;
   private controlPanelUpdateQueue: Map<number, NodeJS.Timeout>;
   private pendingUpdates: Map<number, { chatId: number; totalInvoices: number }>;
+  private excelCache: Map<number, { buffer: Buffer; timestamp: number; invoiceCount: number }>;
 
   constructor(
     token: string,
@@ -45,6 +46,7 @@ export class TelegramBotController {
     this.controlMessages = new Map();
     this.controlPanelUpdateQueue = new Map();
     this.pendingUpdates = new Map();
+    this.excelCache = new Map();
 
     this.setupAuthentication();
     this.setupCommands();
@@ -80,26 +82,28 @@ export class TelegramBotController {
         return; // Stop processing
       }
 
-      // Check rate limiting
-      const rateLimitResult = this.rateLimiter.isAllowed(userId);
-      
-      if (!rateLimitResult.allowed) {
-        this.logger.warn(`Rate limit exceeded for user ${userId}`);
-        this.auditLogger.audit('RATE_LIMIT_EXCEEDED', userId, {
-          retryAfterSeconds: rateLimitResult.retryAfterSeconds,
-        });
+      // Check rate limiting (only if enabled)
+      if (this.rateLimiter.isEnabled()) {
+        const rateLimitResult = this.rateLimiter.isAllowed(userId);
+        
+        if (!rateLimitResult.allowed) {
+          this.logger.warn(`Rate limit exceeded for user ${userId}`);
+          this.auditLogger.audit('RATE_LIMIT_EXCEEDED', userId, {
+            retryAfterSeconds: rateLimitResult.retryAfterSeconds,
+          });
 
-        const retryAfter = rateLimitResult.retryAfterSeconds || 60;
-        const config = this.rateLimiter.getConfig();
-        await ctx.reply(
-          `⏳ Has alcanzado el límite de peticiones.\n\n` +
-          `Por favor espera ${retryAfter} segundo(s) antes de intentar nuevamente.\n\n` +
-          `Límites:\n` +
-          `• ${config.maxRequestsPerMinute} peticiones por minuto\n` +
-          `• ${config.maxRequestsPerHour} peticiones por hora`,
-          { parse_mode: 'Markdown' }
-        );
-        return; // Stop processing
+          const retryAfter = rateLimitResult.retryAfterSeconds || 60;
+          const config = this.rateLimiter.getConfig();
+          await ctx.reply(
+            `⏳ Has alcanzado el límite de peticiones.\n\n` +
+            `Por favor espera ${retryAfter} segundo(s) antes de intentar nuevamente.\n\n` +
+            `Límites:\n` +
+            `• ${config.maxRequestsPerMinute} peticiones por minuto\n` +
+            `• ${config.maxRequestsPerHour} peticiones por hora`,
+            { parse_mode: 'Markdown' }
+          );
+          return; // Stop processing
+        }
       }
 
       // Continue to next middleware/handler
@@ -242,12 +246,12 @@ export class TelegramBotController {
         timestamp: new Date().toISOString(),
       });
 
-      // Execute use case
+      // Execute use case with auto detail level (optimized for performance)
       const result = await this.processInvoiceUseCase.execute({
         fileUrl,
         userId,
         messageId,
-        detail: 'high',
+        detail: 'auto', // Auto-detect optimal detail level
       });
 
       // Update processing message
@@ -263,8 +267,17 @@ export class TelegramBotController {
           { parse_mode: 'Markdown' }
         );
 
-        // Update control panel
-        await this.updateControlPanel(ctx, userId, result.totalInvoices);
+        // Pre-generate Excel in background for faster download
+        setImmediate(() => {
+          this.preGenerateExcel(userId, result.totalInvoices)
+            .catch((err) => this.logger.warn(`Excel pre-generation failed: ${err.message}`));
+        });
+
+        // Update control panel asynchronously (don't block response)
+        setImmediate(() => {
+          this.updateControlPanel(ctx, userId, result.totalInvoices)
+            .catch((err) => this.logger.warn(`Control panel update failed: ${err.message}`));
+        });
 
         // Audit log: File processed successfully
         this.auditLogger.audit('FILE_PROCESSED_SUCCESS', userId, {
@@ -362,12 +375,12 @@ export class TelegramBotController {
         timestamp: new Date().toISOString(),
       });
 
-      // Execute use case
+      // Execute use case with auto detail level (optimized for performance)
       const result = await this.processInvoiceUseCase.execute({
         fileUrl,
         userId,
         messageId,
-        detail: 'high',
+        detail: 'auto', // Auto-detect optimal detail level
       });
 
       if (result.success && result.invoice) {
@@ -381,7 +394,17 @@ export class TelegramBotController {
           { parse_mode: 'Markdown' }
         );
 
-        await this.updateControlPanel(ctx, userId, result.totalInvoices);
+        // Pre-generate Excel in background for faster download
+        setImmediate(() => {
+          this.preGenerateExcel(userId, result.totalInvoices)
+            .catch((err) => this.logger.warn(`Excel pre-generation failed: ${err.message}`));
+        });
+
+        // Update control panel asynchronously (don't block response)
+        setImmediate(() => {
+          this.updateControlPanel(ctx, userId, result.totalInvoices)
+            .catch((err) => this.logger.warn(`Control panel update failed: ${err.message}`));
+        });
 
         // Audit log: File processed successfully
         this.auditLogger.audit('FILE_PROCESSED_SUCCESS', userId, {
@@ -466,6 +489,44 @@ export class TelegramBotController {
 
   private async handleDownloadExcel(ctx: any, userId: number): Promise<void> {
     try {
+      // Check cache first
+      const cached = this.excelCache.get(userId);
+      if (cached) {
+        // Verify cache is still valid (same invoice count)
+        const currentInvoices = this.manageSessionUseCase.getInvoiceCount(userId);
+        if (cached.invoiceCount === currentInvoices) {
+          // Cache hit! Send immediately
+          const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
+          const filename = `facturas_${userId}_${timestamp}.xlsx`;
+
+          await ctx.replyWithDocument(
+            {
+              source: cached.buffer,
+              filename: filename,
+            },
+            {
+              caption: MessageFormatter.excelSentMessage(cached.invoiceCount),
+            }
+          );
+
+          // Audit log: Excel downloaded (from cache)
+          this.auditLogger.audit('EXCEL_DOWNLOADED', userId, {
+            filename,
+            invoiceCount: cached.invoiceCount,
+            fileSizeBytes: cached.buffer.length,
+            fromCache: true,
+            timestamp: new Date().toISOString(),
+          });
+
+          this.logger.success(`Excel sent from cache to user ${userId}`);
+          
+          // Auto-cleanup and clear cache
+          this.handleExcelDownloadCleanup(ctx, userId);
+          return;
+        }
+      }
+
+      // Cache miss or invalid - generate now
       const generatingMsg = await ctx.reply(MessageFormatter.generatingExcelMessage());
 
       const result = await this.generateExcelUseCase.execute({ userId });
@@ -496,31 +557,8 @@ export class TelegramBotController {
 
         this.logger.success(`Excel generated and sent to user ${userId}`);
         
-        // ✅ Auto-cleanup: Limpiar sesión después de descargar Excel
-        const clearResult = this.manageSessionUseCase.clearSession({ userId });
-        
-        if (clearResult.clearedCount > 0) {
-          await ctx.reply(
-            `✅ Sesión limpiada automáticamente: ${clearResult.clearedCount} factura(s) eliminadas.\n\n` +
-            `Puedes empezar a enviar nuevos comprobantes. 🚀`,
-            { parse_mode: 'Markdown' }
-          );
-          this.logger.info(`Session auto-cleared for user ${userId}: ${clearResult.clearedCount} invoices removed`);
-        }
-        
-        // Limpiar el panel de control
-        const controlMessageId = this.controlMessages.get(userId);
-        if (controlMessageId && ctx.chat) {
-          try {
-            await ctx.telegram.deleteMessage(ctx.chat.id, controlMessageId);
-            this.logger.debug(`Control panel message deleted after Excel download for user ${userId}`);
-          } catch (error) {
-            // Ignore if message is already deleted
-            this.logger.warn(`Could not delete control panel message: ${error}`);
-          }
-        }
-        this.controlMessages.delete(userId);
-        this.logger.info(`Control panel reset for user ${userId} - ready for new invoices`);
+        // Auto-cleanup and clear cache
+        this.handleExcelDownloadCleanup(ctx, userId);
       } else {
         await ctx.reply('❌ Error al generar el archivo Excel. Por favor, intenta nuevamente.');
       }
@@ -528,6 +566,61 @@ export class TelegramBotController {
       this.logger.error('Error generating Excel:', error);
       await ctx.reply('❌ Error al generar el archivo Excel. Por favor, intenta nuevamente.');
     }
+  }
+
+  /**
+   * Pre-generate Excel in background for faster download
+   */
+  private async preGenerateExcel(userId: number, invoiceCount: number): Promise<void> {
+    try {
+      const result = await this.generateExcelUseCase.execute({ userId });
+      if (result.success && result.excelBuffer) {
+        // Store in cache
+        this.excelCache.set(userId, {
+          buffer: result.excelBuffer,
+          timestamp: Date.now(),
+          invoiceCount: invoiceCount,
+        });
+        this.logger.debug(`Excel pre-generated and cached for user ${userId} (${invoiceCount} invoices)`);
+      }
+    } catch (error: any) {
+      // Silent fail - cache is optional optimization
+      this.logger.debug(`Excel pre-generation failed for user ${userId}: ${error.message}`);
+    }
+  }
+
+  /**
+   * Handle cleanup after Excel download (session clear, control panel, cache)
+   */
+  private async handleExcelDownloadCleanup(ctx: any, userId: number): Promise<void> {
+    // Clear cache
+    this.excelCache.delete(userId);
+
+    // ✅ Auto-cleanup: Limpiar sesión después de descargar Excel
+    const clearResult = this.manageSessionUseCase.clearSession({ userId });
+    
+    if (clearResult.clearedCount > 0) {
+      await ctx.reply(
+        `✅ Sesión limpiada automáticamente: ${clearResult.clearedCount} factura(s) eliminadas.\n\n` +
+        `Puedes empezar a enviar nuevos comprobantes. 🚀`,
+        { parse_mode: 'Markdown' }
+      );
+      this.logger.info(`Session auto-cleared for user ${userId}: ${clearResult.clearedCount} invoices removed`);
+    }
+    
+    // Limpiar el panel de control
+    const controlMessageId = this.controlMessages.get(userId);
+    if (controlMessageId && ctx.chat) {
+      try {
+        await ctx.telegram.deleteMessage(ctx.chat.id, controlMessageId);
+        this.logger.debug(`Control panel message deleted after Excel download for user ${userId}`);
+      } catch (error) {
+        // Ignore if message is already deleted
+        this.logger.warn(`Could not delete control panel message: ${error}`);
+      }
+    }
+    this.controlMessages.delete(userId);
+    this.logger.info(`Control panel reset for user ${userId} - ready for new invoices`);
   }
 
   private async handleClearSession(ctx: any, userId: number): Promise<void> {

@@ -32,25 +32,51 @@ export class RateLimiterService {
   private userRequests: Map<number, { minute: number[]; hour: number[] }>;
   private config: IRateLimitConfig;
   private cleanupInterval: NodeJS.Timeout | null = null;
+  private enabled: boolean;
 
   constructor(config?: Partial<IRateLimitConfig>) {
     this.userRequests = new Map();
     
+    // Rate limiting is OPTIONAL - only enabled if explicitly configured
+    const envMinute = process.env.RATE_LIMIT_REQUESTS_PER_MINUTE;
+    const envHour = process.env.RATE_LIMIT_REQUESTS_PER_HOUR;
+    
+    // Enable only if at least one limit is configured
+    this.enabled = !!(envMinute || envHour || config?.maxRequestsPerMinute || config?.maxRequestsPerHour);
+    
     this.config = {
-      maxRequestsPerMinute: parseInt(process.env.RATE_LIMIT_REQUESTS_PER_MINUTE || '10'),
-      maxRequestsPerHour: parseInt(process.env.RATE_LIMIT_REQUESTS_PER_HOUR || '50'),
+      maxRequestsPerMinute: parseInt(envMinute || '0'),
+      maxRequestsPerHour: parseInt(envHour || '0'),
       windowSizeMs: 60000, // 1 minute
       ...config,
     };
 
-    // Start cleanup task (remove old entries every 5 minutes)
-    this.startCleanupTask();
+    // Start cleanup task only if enabled
+    if (this.enabled) {
+      this.startCleanupTask();
+    }
+  }
+
+  /**
+   * Check if rate limiting is enabled
+   */
+  isEnabled(): boolean {
+    return this.enabled;
   }
 
   /**
    * Check if request is allowed for user
+   * Returns allowed=true if rate limiting is disabled
    */
   isAllowed(userId: number): IRateLimitResult {
+    // If rate limiting is disabled, always allow
+    if (!this.enabled) {
+      return {
+        allowed: true,
+        remainingRequests: Infinity,
+        resetTime: new Date(),
+      };
+    }
     const now = Date.now();
     const oneMinuteAgo = now - 60000;
     const oneHourAgo = now - 3600000;

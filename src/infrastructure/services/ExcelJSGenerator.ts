@@ -161,8 +161,11 @@ export class ExcelJSGenerator implements IExcelGenerator {
     // Banco receptor: use LLM extraction, fallback to vendor name (who is the receiver)
     let bancoReceptor = invoice.receiverBank || '';
     
-    // If no explicit bank found, use vendor name (they are the money receiver)
+    // Special handling for BNA and Banco Galicia: If receiverBank is empty and vendor name exists, use vendor name
+    // This handles the case where these banks' transfers show "Banco: -" but the recipient name should be used
+    // The LLM should extract this correctly, but this is a safety fallback
     if (!bancoReceptor || bancoReceptor.trim() === '') {
+      // Use vendor name as bank receptor (they are the money receiver)
       bancoReceptor = this.extractBankName(invoice.vendor.name);
     }
     

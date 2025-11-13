@@ -51,12 +51,12 @@ export class FileDocumentIngestor implements IDocumentIngestor {
 
       console.log(`[FileDocumentIngestor] Downloading file from: ${fileUrl.substring(0, 50)}...`);
 
-      // Download file with axios
+      // Download file with axios (optimized timeout)
       const response = await axios({
         method: 'GET',
         url: fileUrl,
         responseType: 'arraybuffer',
-        timeout: 30000,
+        timeout: parseInt(process.env.FILE_DOWNLOAD_TIMEOUT_MS || '20000'), // Reduced from 30s to 20s
         maxContentLength: this.config.maxFileSizeMB * 1024 * 1024,
       });
 

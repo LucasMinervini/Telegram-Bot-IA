@@ -78,8 +78,12 @@ async function main() {
     } else {
       logger.info(`   ✅ Authentication: WHITELIST MODE (${authStats.whitelistSize} users)`);
     }
-    const rateLimitConfig = rateLimiter.getConfig();
-    logger.info(`   ✅ Rate Limiting: ${rateLimitConfig.maxRequestsPerMinute} req/min, ${rateLimitConfig.maxRequestsPerHour} req/hour`);
+    if (rateLimiter.isEnabled()) {
+      const rateLimitConfig = rateLimiter.getConfig();
+      logger.info(`   ✅ Rate Limiting: ${rateLimitConfig.maxRequestsPerMinute} req/min, ${rateLimitConfig.maxRequestsPerHour} req/hour`);
+    } else {
+      logger.info(`   ⚠️  Rate Limiting: DISABLED (no limits configured)`);
+    }
     logger.info(`   ✅ Audit Logging: ${process.env.USE_FILE_AUDIT_LOG === 'true' ? 'FILE-BASED' : 'CONSOLE'}`);
 
     logger.success('✅ Dependencies injected successfully');
