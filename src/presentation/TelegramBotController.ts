@@ -14,6 +14,9 @@ import { ManageSessionUseCase } from '../application/use-cases/ManageSessionUseC
 import { IDocumentIngestor } from '../domain/interfaces/IDocumentIngestor';
 import { ILogger } from '../domain/interfaces/ILogger';
 
+import { RateLimiterService } from '../infrastructure/services/RateLimiterService';
+import { AuthenticationService } from '../infrastructure/services/AuthenticationService';
+
 import { InvoiceFormatter } from './formatters/InvoiceFormatter';
 import { MessageFormatter } from './formatters/MessageFormatter';
 
@@ -33,15 +36,75 @@ export class TelegramBotController {
     private generateExcelUseCase: GenerateExcelUseCase,
     private manageSessionUseCase: ManageSessionUseCase,
     private documentIngestor: IDocumentIngestor,
-    private logger: ILogger
+    private logger: ILogger,
+    private auditLogger: ILogger,
+    private rateLimiter: RateLimiterService,
+    private authService: AuthenticationService
   ) {
     this.bot = new Telegraf(token);
     this.controlMessages = new Map();
     this.controlPanelUpdateQueue = new Map();
     this.pendingUpdates = new Map();
 
+    this.setupAuthentication();
     this.setupCommands();
     this.setupHandlers();
+  }
+
+  // ========================================
+  // Authentication Middleware
+  // ========================================
+
+  private setupAuthentication(): void {
+    // Global authentication middleware
+    this.bot.use(async (ctx, next) => {
+      if (!ctx.from) {
+        return; // Skip if no user info
+      }
+
+      const userId = ctx.from.id;
+      const authResult = this.authService.isAuthorized(userId);
+
+      if (!authResult.authorized) {
+        this.logger.warn(`Unauthorized access attempt by user ${userId}`);
+        this.auditLogger.audit('UNAUTHORIZED_ACCESS_ATTEMPT', userId, {
+          reason: authResult.reason,
+          command: (ctx as any).message?.text || 'unknown',
+        });
+        
+        await ctx.reply(
+          '❌ No tienes permiso para usar este bot.\n\n' +
+          'Contacta al administrador para obtener acceso.',
+          { parse_mode: 'Markdown' }
+        );
+        return; // Stop processing
+      }
+
+      // Check rate limiting
+      const rateLimitResult = this.rateLimiter.isAllowed(userId);
+      
+      if (!rateLimitResult.allowed) {
+        this.logger.warn(`Rate limit exceeded for user ${userId}`);
+        this.auditLogger.audit('RATE_LIMIT_EXCEEDED', userId, {
+          retryAfterSeconds: rateLimitResult.retryAfterSeconds,
+        });
+
+        const retryAfter = rateLimitResult.retryAfterSeconds || 60;
+        const config = this.rateLimiter.getConfig();
+        await ctx.reply(
+          `⏳ Has alcanzado el límite de peticiones.\n\n` +
+          `Por favor espera ${retryAfter} segundo(s) antes de intentar nuevamente.\n\n` +
+          `Límites:\n` +
+          `• ${config.maxRequestsPerMinute} peticiones por minuto\n` +
+          `• ${config.maxRequestsPerHour} peticiones por hora`,
+          { parse_mode: 'Markdown' }
+        );
+        return; // Stop processing
+      }
+
+      // Continue to next middleware/handler
+      return next();
+    });
   }
 
   // ========================================
@@ -97,7 +160,15 @@ export class TelegramBotController {
     this.bot.command('limpiar', async (ctx) => {
       if (!ctx.from) return;
       
-      const result = this.manageSessionUseCase.clearSession({ userId: ctx.from.id });
+      const userId = ctx.from.id;
+      const result = this.manageSessionUseCase.clearSession({ userId });
+      
+      // Audit log: Session cleared
+      this.auditLogger.audit('SESSION_CLEARED', userId, {
+        clearedCount: result.clearedCount,
+        command: '/limpiar',
+        timestamp: new Date().toISOString(),
+      });
       
       if (result.clearedCount === 0) {
         ctx.reply('✅ No hay facturas para limpiar.');
@@ -161,6 +232,15 @@ export class TelegramBotController {
       const photo = ctx.message.photo[ctx.message.photo.length - 1];
       const file = await ctx.telegram.getFile(photo.file_id);
       const fileUrl = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${file.file_path}`;
+      
+      // Audit log: File upload started
+      this.auditLogger.audit('FILE_UPLOAD_STARTED', userId, {
+        fileType: 'photo',
+        fileId: photo.file_id,
+        messageId,
+        fileUrl: fileUrl.substring(0, 100) + '...', // Truncate for security
+        timestamp: new Date().toISOString(),
+      });
 
       // Execute use case
       const result = await this.processInvoiceUseCase.execute({
@@ -186,6 +266,18 @@ export class TelegramBotController {
         // Update control panel
         await this.updateControlPanel(ctx, userId, result.totalInvoices);
 
+        // Audit log: File processed successfully
+        this.auditLogger.audit('FILE_PROCESSED_SUCCESS', userId, {
+          fileType: 'photo',
+          fileId: photo.file_id,
+          messageId,
+          invoiceNumber: invoice.invoiceNumber || 'unknown',
+          totalAmount: invoice.totalAmount || 0,
+          currency: invoice.currency || 'unknown',
+          totalInvoices: result.totalInvoices,
+          timestamp: new Date().toISOString(),
+        });
+
         this.logger.success(`Invoice processed for user ${userId}. Total: ${result.totalInvoices}`);
       } else {
         await ctx.telegram.editMessageText(
@@ -195,6 +287,15 @@ export class TelegramBotController {
           MessageFormatter.formatError(result.error || 'Unknown error'),
           { parse_mode: 'Markdown' }
         );
+
+        // Audit log: File processing failed
+        this.auditLogger.audit('FILE_PROCESSED_FAILED', userId, {
+          fileType: 'photo',
+          fileId: photo.file_id,
+          messageId,
+          error: result.error || 'Unknown error',
+          timestamp: new Date().toISOString(),
+        });
 
         this.logger.error(`Error processing invoice: ${result.error}`);
       }
@@ -249,6 +350,18 @@ export class TelegramBotController {
       const file = await ctx.telegram.getFile(document.file_id);
       const fileUrl = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${file.file_path}`;
 
+      // Audit log: File upload started
+      this.auditLogger.audit('FILE_UPLOAD_STARTED', userId, {
+        fileType: 'document',
+        fileName: document.file_name || 'unknown',
+        fileExtension,
+        fileSizeMB: fileSizeMB.toFixed(2),
+        fileId: document.file_id,
+        messageId,
+        fileUrl: fileUrl.substring(0, 100) + '...', // Truncate for security
+        timestamp: new Date().toISOString(),
+      });
+
       // Execute use case
       const result = await this.processInvoiceUseCase.execute({
         fileUrl,
@@ -270,6 +383,20 @@ export class TelegramBotController {
 
         await this.updateControlPanel(ctx, userId, result.totalInvoices);
 
+        // Audit log: File processed successfully
+        this.auditLogger.audit('FILE_PROCESSED_SUCCESS', userId, {
+          fileType: 'document',
+          fileName: document.file_name || 'unknown',
+          fileExtension,
+          fileId: document.file_id,
+          messageId,
+          invoiceNumber: result.invoice.invoiceNumber || 'unknown',
+          totalAmount: result.invoice.totalAmount || 0,
+          currency: result.invoice.currency || 'unknown',
+          totalInvoices: result.totalInvoices,
+          timestamp: new Date().toISOString(),
+        });
+
         this.logger.success(`Document processed for user ${userId}. Total: ${result.totalInvoices}`);
       } else {
         await ctx.telegram.editMessageText(
@@ -279,6 +406,17 @@ export class TelegramBotController {
           MessageFormatter.formatError(result.error || 'Unknown error'),
           { parse_mode: 'Markdown' }
         );
+
+        // Audit log: File processing failed
+        this.auditLogger.audit('FILE_PROCESSED_FAILED', userId, {
+          fileType: 'document',
+          fileName: document.file_name || 'unknown',
+          fileExtension,
+          fileId: document.file_id,
+          messageId,
+          error: result.error || 'Unknown error',
+          timestamp: new Date().toISOString(),
+        });
       }
 
     } catch (error: any) {
@@ -348,6 +486,14 @@ export class TelegramBotController {
           }
         );
 
+        // Audit log: Excel downloaded
+        this.auditLogger.audit('EXCEL_DOWNLOADED', userId, {
+          filename,
+          invoiceCount: result.invoiceCount,
+          fileSizeBytes: result.excelBuffer.length,
+          timestamp: new Date().toISOString(),
+        });
+
         this.logger.success(`Excel generated and sent to user ${userId}`);
         
         // ✅ Auto-cleanup: Limpiar sesión después de descargar Excel
@@ -386,6 +532,13 @@ export class TelegramBotController {
 
   private async handleClearSession(ctx: any, userId: number): Promise<void> {
     const result = this.manageSessionUseCase.clearSession({ userId });
+
+    // Audit log: Session cleared via button
+    this.auditLogger.audit('SESSION_CLEARED', userId, {
+      clearedCount: result.clearedCount,
+      source: 'button',
+      timestamp: new Date().toISOString(),
+    });
 
     if (result.clearedCount === 0) {
       await ctx.reply('✅ No hay facturas para limpiar.');

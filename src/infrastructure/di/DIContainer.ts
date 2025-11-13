@@ -21,6 +21,10 @@ import { ProcessInvoiceUseCase } from '../../application/use-cases/ProcessInvoic
 import { GenerateExcelUseCase } from '../../application/use-cases/GenerateExcelUseCase';
 import { ManageSessionUseCase } from '../../application/use-cases/ManageSessionUseCase';
 
+import { RateLimiterService } from '../services/RateLimiterService';
+import { AuthenticationService } from '../services/AuthenticationService';
+import { AuditLogger } from '../services/AuditLogger';
+
 /**
  * Dependency Injection Container
  * Single Responsibility: Compose and manage dependencies
@@ -28,10 +32,13 @@ import { ManageSessionUseCase } from '../../application/use-cases/ManageSessionU
 export class DIContainer {
   // Infrastructure Layer
   private _logger: ILogger | null = null;
+  private _auditLogger: ILogger | null = null;
   private _visionProcessor: IVisionProcessor | null = null;
   private _documentIngestor: IDocumentIngestor | null = null;
   private _invoiceRepository: IInvoiceRepository | null = null;
   private _excelGenerator: IExcelGenerator | null = null;
+  private _rateLimiter: RateLimiterService | null = null;
+  private _authService: AuthenticationService | null = null;
 
   // Application Layer
   private _processInvoiceUseCase: ProcessInvoiceUseCase | null = null;
@@ -47,6 +54,34 @@ export class DIContainer {
       this._logger = new ConsoleLogger('TelegramBot');
     }
     return this._logger;
+  }
+
+  get auditLogger(): ILogger {
+    if (!this._auditLogger) {
+      // Use AuditLogger for production, ConsoleLogger for development
+      const useFileAudit = process.env.USE_FILE_AUDIT_LOG === 'true';
+      if (useFileAudit) {
+        this._auditLogger = new AuditLogger();
+      } else {
+        // In development, use console logger but with audit context
+        this._auditLogger = new ConsoleLogger('Audit');
+      }
+    }
+    return this._auditLogger;
+  }
+
+  get rateLimiter(): RateLimiterService {
+    if (!this._rateLimiter) {
+      this._rateLimiter = new RateLimiterService();
+    }
+    return this._rateLimiter;
+  }
+
+  get authService(): AuthenticationService {
+    if (!this._authService) {
+      this._authService = new AuthenticationService();
+    }
+    return this._authService;
   }
 
   get visionProcessor(): IVisionProcessor {
@@ -130,6 +165,10 @@ export class DIContainer {
       this._invoiceRepository.stopCleanupTask();
     }
     
+    if (this._rateLimiter) {
+      this._rateLimiter.stop();
+    }
+    
     this.logger.info('DIContainer cleaned up successfully');
   }
 
@@ -138,10 +177,13 @@ export class DIContainer {
    */
   reset(): void {
     this._logger = null;
+    this._auditLogger = null;
     this._visionProcessor = null;
     this._documentIngestor = null;
     this._invoiceRepository = null;
     this._excelGenerator = null;
+    this._rateLimiter = null;
+    this._authService = null;
     this._processInvoiceUseCase = null;
     this._generateExcelUseCase = null;
     this._manageSessionUseCase = null;

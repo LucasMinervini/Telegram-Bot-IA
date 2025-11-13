@@ -33,5 +33,11 @@ export interface ILogger {
    * Log debug message
    */
   debug(message: string, ...args: any[]): void;
+
+  /**
+   * Log audit event (immutable, for security auditing)
+   * Records sensitive actions for non-repudiation
+   */
+  audit(action: string, userId: number, details: Record<string, any>): void;
 }
 

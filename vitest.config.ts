@@ -28,7 +28,6 @@ export default defineConfig({
         branches: 80,
         statements: 80,
       },
-      // Incluir todos los archivos source
       include: ['src/**/*.ts'],
       all: true, // Incluir archivos no testeados en el reporte
     },

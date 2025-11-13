@@ -65,6 +65,22 @@ async function main() {
     const manageSessionUseCase = container.manageSessionUseCase;
     const documentIngestor = container.documentIngestor;
     const botLogger = container.logger;
+    const auditLogger = container.auditLogger;
+    const rateLimiter = container.rateLimiter;
+    const authService = container.authService;
+
+    // Display security configuration
+    logger.info('🔐 Security Configuration:');
+    const authStats = authService.getStats();
+    if (authStats.isOpenMode) {
+      logger.warn('   ⚠️  Authentication: OPEN MODE (all users allowed)');
+      logger.warn('   💡 Set ALLOWED_USER_IDS in .env to enable whitelist');
+    } else {
+      logger.info(`   ✅ Authentication: WHITELIST MODE (${authStats.whitelistSize} users)`);
+    }
+    const rateLimitConfig = rateLimiter.getConfig();
+    logger.info(`   ✅ Rate Limiting: ${rateLimitConfig.maxRequestsPerMinute} req/min, ${rateLimitConfig.maxRequestsPerHour} req/hour`);
+    logger.info(`   ✅ Audit Logging: ${process.env.USE_FILE_AUDIT_LOG === 'true' ? 'FILE-BASED' : 'CONSOLE'}`);
 
     logger.success('✅ Dependencies injected successfully');
 
@@ -76,7 +92,10 @@ async function main() {
       generateExcelUseCase,
       manageSessionUseCase,
       documentIngestor,
-      botLogger
+      botLogger,
+      auditLogger,
+      rateLimiter,
+      authService
     );
 
     logger.info('🚀 Launching bot...');

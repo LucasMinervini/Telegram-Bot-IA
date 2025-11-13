@@ -43,5 +43,12 @@ export class ConsoleLogger implements ILogger {
       console.log(`[${timestamp}] [${this.context}] 🐛 ${message}`, ...args);
     }
   }
+
+  audit(action: string, userId: number, details: Record<string, any>): void {
+    // Console logger delegates audit to console (for development)
+    // In production, use AuditLogger for file-based immutable logging
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] [${this.context}] [AUDIT] Action: ${action} | User: ${userId} | Details:`, details);
+  }
 }
 
