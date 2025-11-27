@@ -56,7 +56,7 @@ export class FileDocumentIngestor implements IDocumentIngestor {
         method: 'GET',
         url: fileUrl,
         responseType: 'arraybuffer',
-        timeout: parseInt(process.env.FILE_DOWNLOAD_TIMEOUT_MS || '20000'), // Reduced from 30s to 20s
+        timeout: parseInt(process.env.FILE_DOWNLOAD_TIMEOUT_MS || '30000'),
         maxContentLength: this.config.maxFileSizeMB * 1024 * 1024,
       });
 

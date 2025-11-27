@@ -140,21 +140,20 @@ export class ExcelJSGenerator implements IExcelGenerator {
       invoice.operationType || this.extractOperationType(invoice.paymentMethod)
     );
     
-    // CUIT column should prioritize taxId (actual CUIT), not CVU
+    // CUIT/CVU column: prefer CVU, then valid CUIT, then vendor name
     let cuit = '';
-    if (invoice.vendor.taxId) {
+    if (invoice.vendor.cvu) {
+      cuit = invoice.vendor.cvu;
+    } else if (invoice.vendor.taxId) {
       const formattedCuit = this.formatCUIT(invoice.vendor.taxId);
-      // Validate if it's actually a CUIT and not a name
       if (this.isValidCUITFormat(formattedCuit)) {
         cuit = formattedCuit;
-      } else {
-        // If taxId is actually a name/text, treat as not found
-        cuit = '';
       }
     }
-    
-    // Replace undefined/empty values with friendly message
-    cuit = this.sanitizeValue(cuit);
+    if (!cuit && invoice.vendor.name) {
+      cuit = this.extractBankName(invoice.vendor.name);
+    }
+    cuit = this.sanitizeValue(cuit, 'Empresa Sin Identificación');
     
     const montoBruto = invoice.totalAmount;
     
@@ -169,7 +168,7 @@ export class ExcelJSGenerator implements IExcelGenerator {
       bancoReceptor = this.extractBankName(invoice.vendor.name);
     }
     
-    bancoReceptor = this.sanitizeValue(bancoReceptor);
+    bancoReceptor = this.sanitizeValue(bancoReceptor, this.extractBankName(invoice.vendor.name) || 'Banco no especificado');
 
     return {
       fecha: dateFormatted,
@@ -183,9 +182,9 @@ export class ExcelJSGenerator implements IExcelGenerator {
   /**
    * Sanitize value - replace undefined/empty with user-friendly message
    */
-  private sanitizeValue(value: any): string {
+  private sanitizeValue(value: any, fallback = 'No encontrado en la factura'): string {
     if (value === undefined || value === null || value === '' || value === 'undefined') {
-      return 'No encontrado en la factura';
+      return fallback;
     }
     return String(value);
   }
@@ -273,7 +272,6 @@ export class ExcelJSGenerator implements IExcelGenerator {
     // If not 11 digits, return as-is (might be a name or invalid)
     return cuit;
   }
-
   /**
    * Normalize operation type with proper capitalization
    */
