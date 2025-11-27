@@ -12,11 +12,17 @@
     "dev": "tsx watch src/index.clean.ts",
     "dev:clean": "tsx watch src/index.clean.ts",
     "dev:nodemon": "nodemon --exec tsx src/index.clean.ts",
+    "chat": "tsx src/cli/claude-chat.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
-    "test:coverage:ui": "vitest --ui --coverage"
+    "test:coverage:ui": "vitest --ui --coverage",
+    "test:ci": "vitest run --reporter=verbose --coverage",
+    "lint": "eslint src test --ext .ts",
+    "lint:fix": "eslint src test --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"*.json\"",
+    "prepare": "husky install"
   },
   "keywords": [
     "telegram",
@@ -29,6 +35,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.0",
     "axios": "^1.7.9",
     "dotenv": "^17.2.3",
     "exceljs": "^4.4.0",
@@ -40,15 +47,36 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.1",
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^24.9.2",
     "@types/pdf-parse": "^1.1.5",
+    "@typescript-eslint/eslint-plugin": "^8.48.0",
+    "@typescript-eslint/parser": "^8.48.0",
     "@vitest/coverage-v8": "^2.1.8",
     "@vitest/ui": "^2.1.8",
     "concurrently": "^9.2.1",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "nodemon": "^3.1.10",
+    "prettier": "^3.7.1",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "vitest": "^2.1.8"
+  },
+  "lint-staged": {
+    "src/**/*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "test/**/*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.json": [
+      "prettier --write"
+    ]
   }
 }

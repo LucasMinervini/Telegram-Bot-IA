@@ -1,0 +1,23 @@
+coverage:
+  precision: 2
+  round: down
+  range: "70...100"
+
+ignore:
+  - "test"
+  - "node_modules"
+  - "dist"
+  - "coverage"
+
+flags:
+  unittests:
+    carryforward: true
+    paths:
+      - test
+
+comment:
+  layout: "reach,diff,files,footer"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true

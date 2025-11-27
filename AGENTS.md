@@ -4,8 +4,8 @@ INSTRUCCIONES PARA EL DESARROLLO CON IA
 - Seguir principios SOLID en todos los archivos
 - Usar Clean Architecture (domain, application, infrastructure, presentation)
 - Toda nueva funcionalidad debe usar Dependency Injection
-- No Crear ficheros .md cada vez que responde.
-- 
+- No modificar código legacy en /modules (mantener compatibilidad)
+- No crear Archivos .md nuevos, tampoco archivos de ejecución para powershell.
 
 ARQUITECTURA:
 ✅ Clean Architecture + SOLID implementados
@@ -21,7 +21,6 @@ COMANDOS:
 
 CIBERSEGURIDAD:
 Objetivo: Implementar medidas de seguridad esenciales para proteger la confidencialidad de la información crítica (facturas, credenciales de API) y garantizar la disponibilidad del servicio, siguiendo los pilares de la tríada CIA.
-
 Foco 1: Gestión Segura de Credenciales y Secretos (Confidencialidad y Seguridad de Aplicaciones)
 El robo y abuso de credenciales es uno de los puntos de entrada más comunes para ataques. La OPENAI_API_KEY y el TELEGRAM_BOT_TOKEN son activos críticos.
 Tarea de Seguridad
@@ -66,20 +65,3 @@ Configurar IMAGE_RETENTION_HOURS=0. La eliminación automática de archivos debe
 I. Sanitización y Validación de Input
 DocumentIngestor.ts, Interfaces.ts
 Validar estrictamente los límites de tamaño de archivo y los formatos soportados mediante análisis de magic bytes. Esto mitiga ataques de sobrecarga o inyección de código malicioso a través de archivos de gran tamaño. Usar Zod schemas es una excelente práctica de seguridad de aplicaciones para validar los datos extraídos
-
-
-
-
-Pasos Siguiente a cumplir para tener mas seguirad en la app:
-
-❌ No se registra qué archivo específico subió cada usuario
-  - ❌ No se registra cuándo se descargó Excel (solo mensaje genérico)
-  - ❌ No se registra quién ejecutó `/limpiar` con detalles
-  - ❌ Logs no son inmutables (console.log puede ser modificado)
-  - ❌ No hay auditoría trail persistente
-   Usuarios pueden abusar del sistema
-- Costos de API pueden dispararse
-- Posible DoS si múltiples usuarios envían muchos archivos
-❌ Sin control de acceso (cualquiera puede usar el bot)  
-❌ Sin rate limiting (vulnerable a abuso)  
-⚠️ Logging insuficiente para auditoría  

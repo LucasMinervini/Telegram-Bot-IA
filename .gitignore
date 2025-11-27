@@ -1,0 +1,82 @@
+node_modules/
+dist/
+build/
+coverage/
+.cache/
+temp/
+!temp/.gitkeep
+.DS_Store
+.vscode/
+.idea/
+
+# ========================================
+# TAREA A: Secret Protection & Escaneo
+# ========================================
+# Environment files (NUNCA commitear .env con secretos)
+.env
+.env.*
+!.env.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ========================================
+# Archivos compilados (generados automáticamente)
+# ========================================
+dist/
+*.js
+*.js.map
+*.d.ts
+*.d.ts.map
+
+# Excepciones - mantener archivos de configuración
+!*.config.js
+!vitest.config.js
+
+# ========================================
+# Archivos temporales y logs
+# ========================================
+temp/
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ========================================
+# IDEs y editores
+# ========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# ========================================
+# Sistema operativo
+# ========================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ========================================
+# Testing y Coverage
+# ========================================
+coverage/
+.nyc_output/
+.coverage/
+
+# ========================================
+# Dependabot y herramientas de actualización
+# ========================================
+audit-report.json
+
+# ========================================
+# Archivos de bloqueo (opcional)
+# ========================================
+package-lock.json
+yarn.lock
+

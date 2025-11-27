@@ -1,0 +1,107 @@
+name: Test & Build Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run linter
+        run: npm run lint || true
+      
+      - name: Run tests with coverage
+        run: npm run test:coverage
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage/coverage-final.json
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+      
+      - name: Check coverage threshold (80%)
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            COVERAGE=$(grep -o '"lines":[0-9.]*' coverage/coverage-summary.json | head -1 | grep -o '[0-9.]*')
+            echo "Coverage: $COVERAGE%"
+            if (( $(echo "$COVERAGE < 80" | bc -l) )); then
+              echo "⚠️ Coverage is $COVERAGE% - below 80% threshold (warning only)"
+            else
+              echo "✅ Coverage is $COVERAGE% - OK!"
+            fi
+          fi
+      
+      - name: Build project
+        run: npm run build:clean
+      
+      - name: Security audit
+        run: npm audit --audit-level=moderate || true
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build for production
+        run: npm run build:clean
+      
+      - name: Verify build output
+        run: |
+          if [ ! -d "dist" ]; then
+            echo "❌ Build failed: dist directory not created"
+            exit 1
+          fi
+          echo "✅ Build successful"
+
+  deploy-staging:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to staging
+        run: echo "🚀 Staging deployment configured"
+
+  deploy-production:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to production
+        run: echo "🚀 Production deployment configured"
