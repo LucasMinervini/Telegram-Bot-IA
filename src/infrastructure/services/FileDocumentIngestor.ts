@@ -43,11 +43,35 @@ export class FileDocumentIngestor implements IDocumentIngestor {
 
   async downloadAndStore(fileUrl: string, userId: number, messageId: number): Promise<IStorageResult> {
     try {
-      // Generate unique filename
+      // Validate and sanitize fileUrl
+      if (!fileUrl || typeof fileUrl !== 'string' || fileUrl.length > 2048) {
+        return {
+          success: false,
+          error: 'Invalid file URL provided',
+        };
+      }
+
+      // Generate unique filename with sanitization
       const timestamp = Date.now();
       const extension = this.extractExtension(fileUrl);
-      const fileName = `user_${userId}_msg_${messageId}_${timestamp}${extension}`;
-      const filePath = path.join(this.config.tempStoragePath, fileName);
+      // Sanitize userId and messageId to prevent path injection
+      const sanitizedUserId = String(userId).replace(/[^0-9]/g, '');
+      const sanitizedMessageId = String(messageId).replace(/[^0-9]/g, '');
+      const fileName = `user_${sanitizedUserId}_msg_${sanitizedMessageId}_${timestamp}${extension}`;
+      
+      // Ensure filename doesn't contain path traversal
+      const safeFileName = path.basename(fileName);
+      const filePath = path.join(this.config.tempStoragePath, safeFileName);
+      
+      // Additional security: ensure filePath is within tempStoragePath
+      const resolvedFilePath = path.resolve(filePath);
+      const resolvedStoragePath = path.resolve(this.config.tempStoragePath);
+      if (!resolvedFilePath.startsWith(resolvedStoragePath)) {
+        return {
+          success: false,
+          error: 'Invalid file path detected',
+        };
+      }
 
       console.log(`[FileDocumentIngestor] Downloading file from: ${fileUrl.substring(0, 50)}...`);
 

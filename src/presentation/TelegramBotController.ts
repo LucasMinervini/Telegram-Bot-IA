@@ -235,6 +235,14 @@ export class TelegramBotController {
       // Get highest resolution photo
       const photo = ctx.message.photo[ctx.message.photo.length - 1];
       const file = await ctx.telegram.getFile(photo.file_id);
+      
+      // Validate file_path to prevent path traversal
+      if (!file.file_path || file.file_path.includes('..') || file.file_path.includes('/') && !file.file_path.startsWith('photos/') && !file.file_path.startsWith('documents/')) {
+        this.logger.warn(`Invalid file_path detected: ${file.file_path}`);
+        await ctx.reply('❌ Error: Archivo inválido. Por favor, intenta nuevamente.');
+        return;
+      }
+      
       const fileUrl = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${file.file_path}`;
       
       // Audit log: File upload started
@@ -361,6 +369,14 @@ export class TelegramBotController {
       const processingMsg = await ctx.reply(MessageFormatter.processingMessage());
 
       const file = await ctx.telegram.getFile(document.file_id);
+      
+      // Validate file_path to prevent path traversal
+      if (!file.file_path || file.file_path.includes('..') || file.file_path.includes('/') && !file.file_path.startsWith('photos/') && !file.file_path.startsWith('documents/')) {
+        this.logger.warn(`Invalid file_path detected: ${file.file_path}`);
+        await ctx.reply('❌ Error: Archivo inválido. Por favor, intenta nuevamente.');
+        return;
+      }
+      
       const fileUrl = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${file.file_path}`;
 
       // Audit log: File upload started
