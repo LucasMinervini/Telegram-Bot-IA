@@ -289,7 +289,10 @@ describe('DocumentIngestor', () => {
       const result = await ingestor.downloadAndStore('https://example.com/test.jpg', -1, -1);
 
       expect(result.success).toBe(true);
-      expect(result.fileName).toContain('user_-1');
+      // Los IDs negativos se sanitizan por seguridad (se elimina el signo negativo)
+      // Esto previene problemas de path traversal
+      expect(result.fileName).toContain('user_1');
+      expect(result.fileName).toContain('msg_1');
     });
   });
 });

@@ -76,7 +76,9 @@ describe('AuditLogger', () => {
       const content = fs.readFileSync(logFile, 'utf-8');
       
       expect(content).toContain('timestamp');
-      expect(content).toContain('2025');
+      // Check that timestamp is a valid ISO date string (contains current year)
+      const currentYear = new Date().getFullYear().toString();
+      expect(content).toContain(currentYear);
     });
 
     it('should include action in log entry', () => {

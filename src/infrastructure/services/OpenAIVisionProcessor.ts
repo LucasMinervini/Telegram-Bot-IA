@@ -86,7 +86,14 @@ export class OpenAIVisionProcessor implements IVisionProcessor {
         return this.createErrorResult('Model returned no content', options.userId, options.messageId);
       }
 
-      const parsed = JSON.parse(raw);
+      let parsed: any;
+      try {
+        parsed = JSON.parse(raw);
+      } catch (parseError: any) {
+        this.logger.error('[Vision] Failed to parse JSON response', { error: parseError.message, raw: raw.substring(0, 200) });
+        return this.createErrorResult('Error al procesar respuesta del modelo (formato inválido)', options.userId, options.messageId);
+      }
+
       const validation = this.validateSchema(parsed);
       if (!validation.success) {
         return this.createErrorResult('Datos de factura inválidos (schema)', options.userId, options.messageId);
@@ -174,7 +181,9 @@ export class OpenAIVisionProcessor implements IVisionProcessor {
 
       this.logger.info('[Vision] PDF text extracted', { textLength: extractedText.length, pages: pdfData.numpages });
 
-      extractedText = extractedText.replace(/[\u0000-\u001F\u007F]/g, ' ');
+      // Remove control characters (0x00-0x1F and 0x7F) - using character class to avoid ESLint error
+      // eslint-disable-next-line no-control-regex
+      extractedText = extractedText.replace(/[\x00-\x1F\x7F]/g, ' ');
       const MAX_LENGTH = 12000;
       if (extractedText.length > MAX_LENGTH) {
         extractedText = extractedText.slice(0, MAX_LENGTH);
@@ -201,7 +210,14 @@ export class OpenAIVisionProcessor implements IVisionProcessor {
         return this.createErrorResult('Model returned no content', options.userId, options.messageId);
       }
 
-      const parsed = JSON.parse(raw);
+      let parsed: any;
+      try {
+        parsed = JSON.parse(raw);
+      } catch (parseError: any) {
+        this.logger.error('[Vision] Failed to parse JSON response (PDF)', { error: parseError.message, raw: raw.substring(0, 200) });
+        return this.createErrorResult('Error al procesar respuesta del modelo (formato inválido)', options.userId, options.messageId);
+      }
+
       const validation = this.validateSchema(parsed);
       if (!validation.success) {
         return this.createErrorResult('Datos de factura inválidos (schema)', options.userId, options.messageId);
@@ -279,7 +295,14 @@ export class OpenAIVisionProcessor implements IVisionProcessor {
         return this.createErrorResult('Model returned no content', options.userId, options.messageId);
       }
 
-      const parsed = JSON.parse(raw);
+      let parsed: any;
+      try {
+        parsed = JSON.parse(raw);
+      } catch (parseError: any) {
+        this.logger.error('[Vision] Failed to parse JSON response (PDF as image)', { error: parseError.message, raw: raw.substring(0, 200) });
+        return this.createErrorResult('Error al procesar respuesta del modelo (formato inválido)', options.userId, options.messageId);
+      }
+
       const validation = this.validateSchema(parsed);
       if (!validation.success) {
         return this.createErrorResult('Datos de factura inválidos (schema)', options.userId, options.messageId);
