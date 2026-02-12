@@ -6,6 +6,8 @@ export interface IRateLimitConfig {
 
 export interface IRateLimitResult {
   allowed: boolean;
+  remainingRequests: number;
+  resetTime: Date;
   retryAfterSeconds?: number;
 }
 
