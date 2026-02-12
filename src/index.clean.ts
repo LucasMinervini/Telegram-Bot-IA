@@ -17,7 +17,7 @@ async function main() {
   const logger = new ConsoleLogger('Main');
 
   // Banner
-  console.log(`
+  console.info(`
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
 ║     🤖 BOT DE PROCESAMIENTO DE COMPROBANTES              ║
@@ -121,12 +121,15 @@ async function main() {
     logger.info('   • Interface Segregation Principle ✅');
     logger.info('   • Dependency Inversion Principle ✅');
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('❌ Fatal error during initialization:');
-    logger.error(error.message);
-    
-    if (error.stack) {
-      logger.debug('Stack trace:', error.stack);
+    if (error instanceof Error) {
+      logger.error(error.message);
+      if (error.stack) {
+        logger.debug('Stack trace:', error.stack);
+      }
+    } else {
+      logger.error(String(error));
     }
 
     logger.error('\n💡 Suggestions:');
@@ -142,7 +145,7 @@ async function main() {
 }
 
 // Global error handlers
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', (reason, _promise) => {
   const logger = new ConsoleLogger('UnhandledRejection');
   logger.error('Unhandled promise rejection:', reason);
   container.cleanup();

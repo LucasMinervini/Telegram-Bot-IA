@@ -7,15 +7,15 @@
 
 import { Telegraf, Context, Markup } from 'telegraf';
 import { message } from 'telegraf/filters';
+import { setImmediate as scheduleImmediate } from 'node:timers';
 
 import { ProcessInvoiceUseCase } from '../application/use-cases/ProcessInvoiceUseCase';
 import { GenerateExcelUseCase } from '../application/use-cases/GenerateExcelUseCase';
 import { ManageSessionUseCase } from '../application/use-cases/ManageSessionUseCase';
 import { IDocumentIngestor } from '../domain/interfaces/IDocumentIngestor';
 import { ILogger } from '../domain/interfaces/ILogger';
-
-import { RateLimiterService } from '../infrastructure/services/RateLimiterService';
-import { AuthenticationService } from '../infrastructure/services/AuthenticationService';
+import { IAuthenticationService } from '../domain/interfaces/IAuthenticationService';
+import { IRateLimiterService } from '../domain/interfaces/IRateLimiterService';
 
 import { InvoiceFormatter } from './formatters/InvoiceFormatter';
 import { MessageFormatter } from './formatters/MessageFormatter';
@@ -27,7 +27,7 @@ import { MessageFormatter } from './formatters/MessageFormatter';
 export class TelegramBotController {
   private bot: Telegraf;
   private controlMessages: Map<number, number>;
-  private controlPanelUpdateQueue: Map<number, NodeJS.Timeout>;
+  private controlPanelUpdateQueue: Map<number, ReturnType<typeof setTimeout>>;
   private pendingUpdates: Map<number, { chatId: number; totalInvoices: number }>;
   private excelCache: Map<number, { buffer: Buffer; timestamp: number; invoiceCount: number }>;
 
@@ -39,8 +39,8 @@ export class TelegramBotController {
     private documentIngestor: IDocumentIngestor,
     private logger: ILogger,
     private auditLogger: ILogger,
-    private rateLimiter: RateLimiterService,
-    private authService: AuthenticationService
+    private rateLimiter: IRateLimiterService,
+    private authService: IAuthenticationService
   ) {
     this.bot = new Telegraf(token);
     this.controlMessages = new Map();
@@ -135,7 +135,8 @@ export class TelegramBotController {
           stats.oldestFileAgeHours
         );
         ctx.reply(message, { parse_mode: 'Markdown' });
-      } catch (error: any) {
+      } catch (error: unknown) {
+        this.logger.error('Error obteniendo estadísticas', error);
         ctx.reply('❌ Error obteniendo estadísticas');
       }
     });
@@ -276,13 +277,13 @@ export class TelegramBotController {
         );
 
         // Pre-generate Excel in background for faster download
-        setImmediate(() => {
+        scheduleImmediate(() => {
           this.preGenerateExcel(userId, result.totalInvoices)
             .catch((err) => this.logger.warn(`Excel pre-generation failed: ${err.message}`));
         });
 
         // Update control panel asynchronously (don't block response)
-        setImmediate(() => {
+        scheduleImmediate(() => {
           this.updateControlPanel(ctx, userId, result.totalInvoices)
             .catch((err) => this.logger.warn(`Control panel update failed: ${err.message}`));
         });
@@ -411,13 +412,13 @@ export class TelegramBotController {
         );
 
         // Pre-generate Excel in background for faster download
-        setImmediate(() => {
+        scheduleImmediate(() => {
           this.preGenerateExcel(userId, result.totalInvoices)
             .catch((err) => this.logger.warn(`Excel pre-generation failed: ${err.message}`));
         });
 
         // Update control panel asynchronously (don't block response)
-        setImmediate(() => {
+        scheduleImmediate(() => {
           this.updateControlPanel(ctx, userId, result.totalInvoices)
             .catch((err) => this.logger.warn(`Control panel update failed: ${err.message}`));
         });
@@ -658,7 +659,7 @@ export class TelegramBotController {
     if (controlMessageId && ctx.chat) {
       try {
         await ctx.telegram.deleteMessage(ctx.chat.id, controlMessageId);
-      } catch (error) {
+      } catch {
         // Ignore if message already deleted
       }
     }

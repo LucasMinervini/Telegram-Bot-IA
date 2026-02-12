@@ -6,7 +6,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { ProcessEnv } from 'node:process';
-import { RateLimiterService } from '../src/infrastructure/services/RateLimiterService';
+import { RateLimiterService } from '@/infrastructure/services/RateLimiterService';
 
 describe('RateLimiterService', () => {
   let originalEnv: ProcessEnv;

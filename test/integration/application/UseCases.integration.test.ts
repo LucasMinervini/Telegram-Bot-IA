@@ -1,19 +1,19 @@
 /**
  * Integration Tests para Use Cases
- * Tests de INTEGRACIÓN que verifican la orquestación entre servicios
- * Usan mocks para aislar la lógica de negocio
+ * Tests de INTEGRACIÃ“N que verifican la orquestaciÃ³n entre servicios
+ * Usan mocks para aislar la lÃ³gica de negocio
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ProcessInvoiceUseCase } from '../src/application/use-cases/ProcessInvoiceUseCase';
-import { ManageSessionUseCase } from '../src/application/use-cases/ManageSessionUseCase';
-import { GenerateExcelUseCase } from '../src/application/use-cases/GenerateExcelUseCase';
-import { Invoice } from '../src/domain/entities/Invoice.entity';
-import type { IDocumentIngestor } from '../src/domain/interfaces/IDocumentIngestor';
-import type { IVisionProcessor } from '../src/domain/interfaces/IVisionProcessor';
-import type { IInvoiceRepository } from '../src/domain/interfaces/IInvoiceRepository';
-import type { IExcelGenerator } from '../src/domain/interfaces/IExcelGenerator';
-import type { ILogger } from '../src/domain/interfaces/ILogger';
+import { ProcessInvoiceUseCase } from '@/application/use-cases/ProcessInvoiceUseCase';
+import { ManageSessionUseCase } from '@/application/use-cases/ManageSessionUseCase';
+import { GenerateExcelUseCase } from '@/application/use-cases/GenerateExcelUseCase';
+import { Invoice } from '@/domain/entities/Invoice.entity';
+import type { IDocumentIngestor } from '@/domain/interfaces/IDocumentIngestor';
+import type { IVisionProcessor } from '@/domain/interfaces/IVisionProcessor';
+import type { IInvoiceRepository } from '@/domain/interfaces/IInvoiceRepository';
+import type { IExcelGenerator } from '@/domain/interfaces/IExcelGenerator';
+import type { ILogger } from '@/domain/interfaces/ILogger';
 
 describe('Use Cases - Integration Tests', () => {
   // Mock factories
@@ -84,7 +84,7 @@ describe('Use Cases - Integration Tests', () => {
       );
     });
 
-    it('debería procesar factura exitosamente (happy path)', async () => {
+    it('deberÃ­a procesar factura exitosamente (happy path)', async () => {
       // Arrange
       const request = {
         fileUrl: 'https://example.com/invoice.jpg',
@@ -127,7 +127,7 @@ describe('Use Cases - Integration Tests', () => {
       expect(mockLogger.success).toHaveBeenCalled();
     });
 
-    it('debería manejar error en descarga de archivo', async () => {
+    it('deberÃ­a manejar error en descarga de archivo', async () => {
       // Arrange
       (mockDocumentIngestor.downloadAndStore as any).mockResolvedValue({
         success: false,
@@ -151,7 +151,7 @@ describe('Use Cases - Integration Tests', () => {
       expect(mockInvoiceRepository.addInvoice).not.toHaveBeenCalled();
     });
 
-    it('debería manejar error en procesamiento de visión', async () => {
+    it('deberÃ­a manejar error en procesamiento de visiÃ³n', async () => {
       // Arrange
       (mockDocumentIngestor.downloadAndStore as any).mockResolvedValue({
         success: true,
@@ -179,14 +179,14 @@ describe('Use Cases - Integration Tests', () => {
       expect(mockDocumentIngestor.deleteFile).toHaveBeenCalled(); // Debe limpiar archivo temporal
     });
 
-    it('debería NO borrar archivo temporal si retentionHours > 0', async () => {
+    it('deberÃ­a NO borrar archivo temporal si retentionHours > 0', async () => {
       // Arrange
       const useCaseWithRetention = new ProcessInvoiceUseCase(
         mockDocumentIngestor,
         mockVisionProcessor,
         mockInvoiceRepository,
         mockLogger,
-        24 // 24 horas de retención
+        24 // 24 horas de retenciÃ³n
       );
 
       const mockInvoice = createMockInvoice('001-001');
@@ -212,7 +212,7 @@ describe('Use Cases - Integration Tests', () => {
       expect(mockDocumentIngestor.deleteFile).not.toHaveBeenCalled();
     });
 
-    it('debería pasar detail level al vision processor', async () => {
+    it('deberÃ­a pasar detail level al vision processor', async () => {
       // Arrange
       const mockInvoice = createMockInvoice('001-001');
 
@@ -242,7 +242,7 @@ describe('Use Cases - Integration Tests', () => {
       );
     });
 
-    it('debería manejar excepciones no controladas', async () => {
+    it('deberÃ­a manejar excepciones no controladas', async () => {
       // Arrange
       (mockDocumentIngestor.downloadAndStore as any).mockRejectedValue(
         new Error('Unexpected error')
@@ -287,7 +287,7 @@ describe('Use Cases - Integration Tests', () => {
       useCase = new ManageSessionUseCase(mockInvoiceRepository, mockLogger);
     });
 
-    it('debería retornar info vacía para usuario sin sesión', () => {
+    it('deberÃ­a retornar info vacÃ­a para usuario sin sesiÃ³n', () => {
       // Arrange
       (mockInvoiceRepository.hasSession as any).mockReturnValue(false);
 
@@ -302,7 +302,7 @@ describe('Use Cases - Integration Tests', () => {
       expect(response.vendorSummary.size).toBe(0);
     });
 
-    it('debería calcular correctamente info de sesión con facturas', () => {
+    it('deberÃ­a calcular correctamente info de sesiÃ³n con facturas', () => {
       // Arrange
       const invoices = [
         createMockInvoice('001-001'),
@@ -349,7 +349,7 @@ describe('Use Cases - Integration Tests', () => {
       expect(response.vendorSummary.get('Vendor 2')).toBe(2000);
     });
 
-    it('debería limpiar sesión exitosamente', () => {
+    it('deberÃ­a limpiar sesiÃ³n exitosamente', () => {
       // Arrange
       (mockInvoiceRepository.getInvoiceCount as any).mockReturnValue(5);
 
@@ -363,7 +363,7 @@ describe('Use Cases - Integration Tests', () => {
       expect(mockLogger.info).toHaveBeenCalled();
     });
 
-    it('debería manejar limpieza de sesión vacía', () => {
+    it('deberÃ­a manejar limpieza de sesiÃ³n vacÃ­a', () => {
       // Arrange
       (mockInvoiceRepository.getInvoiceCount as any).mockReturnValue(0);
 
@@ -376,7 +376,7 @@ describe('Use Cases - Integration Tests', () => {
       expect(mockInvoiceRepository.clearInvoices).not.toHaveBeenCalled();
     });
 
-    it('debería obtener conteo de facturas', () => {
+    it('deberÃ­a obtener conteo de facturas', () => {
       // Arrange
       (mockInvoiceRepository.getInvoiceCount as any).mockReturnValue(10);
 
@@ -422,7 +422,7 @@ describe('Use Cases - Integration Tests', () => {
       );
     });
 
-    it('debería generar Excel exitosamente (happy path)', async () => {
+    it('deberÃ­a generar Excel exitosamente (happy path)', async () => {
       // Arrange
       const invoices = [
         createMockInvoice('001-001'),
@@ -446,7 +446,7 @@ describe('Use Cases - Integration Tests', () => {
       expect(mockLogger.success).toHaveBeenCalled();
     });
 
-    it('debería retornar error si no hay facturas', async () => {
+    it('deberÃ­a retornar error si no hay facturas', async () => {
       // Arrange
       (mockInvoiceRepository.getInvoices as any).mockReturnValue([]);
 
@@ -461,7 +461,7 @@ describe('Use Cases - Integration Tests', () => {
       expect(mockLogger.warn).toHaveBeenCalled();
     });
 
-    it('debería manejar error en generación de Excel', async () => {
+    it('deberÃ­a manejar error en generaciÃ³n de Excel', async () => {
       // Arrange
       const invoices = [createMockInvoice('001-001')];
 
@@ -479,7 +479,7 @@ describe('Use Cases - Integration Tests', () => {
       expect(mockLogger.error).toHaveBeenCalled();
     });
 
-    it('debería generar Excel con una sola factura', async () => {
+    it('deberÃ­a generar Excel con una sola factura', async () => {
       // Arrange
       const invoices = [createMockInvoice('001-001')];
       const mockBuffer = Buffer.from('excel content');
@@ -495,7 +495,7 @@ describe('Use Cases - Integration Tests', () => {
       expect(response.invoiceCount).toBe(1);
     });
 
-    it('debería generar Excel con muchas facturas', async () => {
+    it('deberÃ­a generar Excel con muchas facturas', async () => {
       // Arrange
       const invoices = Array.from({ length: 100 }, (_, i) =>
         createMockInvoice(`001-${String(i).padStart(3, '0')}`)

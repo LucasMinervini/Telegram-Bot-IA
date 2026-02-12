@@ -65,3 +65,14 @@ Configurar IMAGE_RETENTION_HOURS=0. La eliminación automática de archivos debe
 I. Sanitización y Validación de Input
 DocumentIngestor.ts, Interfaces.ts
 Validar estrictamente los límites de tamaño de archivo y los formatos soportados mediante análisis de magic bytes. Esto mitiga ataques de sobrecarga o inyección de código malicioso a través de archivos de gran tamaño. Usar Zod schemas es una excelente práctica de seguridad de aplicaciones para validar los datos extraídos
+
+#################################
+          TEST 
+#################################
+E2E:
+1 Escenarios Reales
+2 Sistema Completo
+3 Critico para el negocio
+4 Quality Gate 
+5 Playwright
+6 Mock Server

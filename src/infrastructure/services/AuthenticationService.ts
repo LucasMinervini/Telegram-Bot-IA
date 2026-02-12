@@ -5,11 +5,7 @@
  * Follows Clean Architecture - Infrastructure Layer
  */
 
-export interface IAuthResult {
-  authorized: boolean;
-  userId: number;
-  reason?: string;
-}
+import { IAuthenticationService, IAuthResult } from '../../domain/interfaces/IAuthenticationService';
 
 /**
  * Authentication Service
@@ -21,7 +17,7 @@ export interface IAuthResult {
  * - Fast lookup (Set-based)
  * - No authentication required if whitelist is empty (open mode)
  */
-export class AuthenticationService {
+export class AuthenticationService implements IAuthenticationService {
   private allowedUserIds: Set<number>;
   private isOpenMode: boolean;
 

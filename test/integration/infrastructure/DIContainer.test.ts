@@ -6,17 +6,17 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { ProcessEnv } from 'node:process';
-import { DIContainer } from '../src/infrastructure/di/DIContainer';
-import { ILogger } from '../src/domain/interfaces/ILogger';
-import { IVisionProcessor } from '../src/domain/interfaces/IVisionProcessor';
-import { IDocumentIngestor } from '../src/domain/interfaces/IDocumentIngestor';
-import { IInvoiceRepository } from '../src/domain/interfaces/IInvoiceRepository';
-import { IExcelGenerator } from '../src/domain/interfaces/IExcelGenerator';
-import { ProcessInvoiceUseCase } from '../src/application/use-cases/ProcessInvoiceUseCase';
-import { GenerateExcelUseCase } from '../src/application/use-cases/GenerateExcelUseCase';
-import { ManageSessionUseCase } from '../src/application/use-cases/ManageSessionUseCase';
-import { RateLimiterService } from '../src/infrastructure/services/RateLimiterService';
-import { AuthenticationService } from '../src/infrastructure/services/AuthenticationService';
+import { DIContainer } from '@/infrastructure/di/DIContainer';
+import { ILogger } from '@/domain/interfaces/ILogger';
+import { IVisionProcessor } from '@/domain/interfaces/IVisionProcessor';
+import { IDocumentIngestor } from '@/domain/interfaces/IDocumentIngestor';
+import { IInvoiceRepository } from '@/domain/interfaces/IInvoiceRepository';
+import { IExcelGenerator } from '@/domain/interfaces/IExcelGenerator';
+import { ProcessInvoiceUseCase } from '@/application/use-cases/ProcessInvoiceUseCase';
+import { GenerateExcelUseCase } from '@/application/use-cases/GenerateExcelUseCase';
+import { ManageSessionUseCase } from '@/application/use-cases/ManageSessionUseCase';
+import { RateLimiterService } from '@/infrastructure/services/RateLimiterService';
+import { AuthenticationService } from '@/infrastructure/services/AuthenticationService';
 
 describe('DIContainer', () => {
   let container: DIContainer;

@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import { AuditLogger } from '../src/infrastructure/services/AuditLogger';
+import { AuditLogger } from '@/infrastructure/services/AuditLogger';
 
 describe('AuditLogger', () => {
   const testLogDir = './test-logs';
@@ -324,7 +324,7 @@ describe('AuditLogger', () => {
       
       const details = {
         message: 'Contains "quotes" and \\backslashes\\ and\nnewlines',
-        data: '日本語テキスト',
+        data: 'æ—¥æœ¬èªžãƒ†ã‚­ã‚¹ãƒˆ',
       };
       
       logger.audit('SPECIAL_CHARS', 123, details);
@@ -334,7 +334,7 @@ describe('AuditLogger', () => {
       const entry = JSON.parse(content.trim());
       
       expect(entry.details.message).toContain('quotes');
-      expect(entry.details.data).toBe('日本語テキスト');
+      expect(entry.details.data).toBe('æ—¥æœ¬èªžãƒ†ã‚­ã‚¹ãƒˆ');
     });
 
     it('should handle negative user IDs', () => {

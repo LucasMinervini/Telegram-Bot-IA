@@ -333,7 +333,7 @@ export class ExcelJSGenerator implements IExcelGenerator {
    * Auto-adjust column widths based on content
    */
   private autoAdjustColumnWidths(worksheet: ExcelJS.Worksheet): void {
-    worksheet.columns.forEach((column, colIndex) => {
+    worksheet.columns.forEach((column) => {
       if (!column.eachCell) return;
       
       let maxLength = 0;

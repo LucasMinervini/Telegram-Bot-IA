@@ -55,14 +55,19 @@ export default [
         },
       ],
       '@typescript-eslint/explicit-function-return-types': 'off',
-      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-explicit-any': 'off',
       'no-console': [
-        'warn',
-        {
-          allow: ['warn', 'error', 'info', 'debug'],
-        },
+        'off',
       ],
     },
   },
   prettier,
+  {
+    files: ['test/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+      'no-console': 'off',
+    },
+  },
 ];

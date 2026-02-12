@@ -6,7 +6,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { ProcessEnv } from 'node:process';
-import { AuthenticationService } from '../src/infrastructure/services/AuthenticationService';
+import { AuthenticationService } from '@/infrastructure/services/AuthenticationService';
 
 describe('AuthenticationService', () => {
   let originalEnv: ProcessEnv;

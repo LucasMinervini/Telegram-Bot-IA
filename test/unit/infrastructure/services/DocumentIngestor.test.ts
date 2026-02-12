@@ -1,11 +1,12 @@
 /**
  * Test suite para DocumentIngestor.ts
- * Valida descarga, validación y gestión de archivos temporales
+ * Valida descarga, validaciÃ³n y gestiÃ³n de archivos temporales
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { FileDocumentIngestor } from '../src/infrastructure/services/FileDocumentIngestor';
-import type { IDocumentIngestorConfig, IStorageResult } from '../src/domain/interfaces/IDocumentIngestor';
+import { FileDocumentIngestor } from '@/infrastructure/services/FileDocumentIngestor';
+import type { IStorageResult } from '@/domain/interfaces/IDocumentIngestor';
+import type { IDocumentIngestorConfig } from '@/infrastructure/services/FileDocumentIngestor';
 import fs from 'fs-extra';
 import axios from 'axios';
 import path from 'path';
@@ -41,7 +42,7 @@ describe('DocumentIngestor', () => {
   });
 
   describe('Constructor y ensureTempDirectory', () => {
-    it('debería crear el directorio temporal si no existe', async () => {
+    it('deberÃ­a crear el directorio temporal si no existe', async () => {
       const newPath = path.join(testTempPath, 'new-dir');
       const config = { ...testConfig, tempStoragePath: newPath };
 
@@ -66,7 +67,7 @@ describe('DocumentIngestor', () => {
       });
     });
 
-    it('debería descargar y almacenar archivo correctamente', async () => {
+    it('deberÃ­a descargar y almacenar archivo correctamente', async () => {
       const fileUrl = 'https://example.com/test.jpg';
       const userId = 12345;
       const messageId = 67890;
@@ -80,7 +81,7 @@ describe('DocumentIngestor', () => {
       expect(result.fileName).toContain(`msg_${messageId}`);
     });
 
-    it('debería crear archivo en el filesystem', async () => {
+    it('deberÃ­a crear archivo en el filesystem', async () => {
       const fileUrl = 'https://example.com/test.jpg';
       const userId = 12345;
       const messageId = 67890;
@@ -92,7 +93,7 @@ describe('DocumentIngestor', () => {
       }
     });
 
-    it('debería extraer extensión de la URL', async () => {
+    it('deberÃ­a extraer extensiÃ³n de la URL', async () => {
       const fileUrl = 'https://example.com/test.pdf';
       const userId = 12345;
       const messageId = 67890;
@@ -107,13 +108,13 @@ describe('DocumentIngestor', () => {
       expect(result.fileName).toContain('.pdf');
     });
 
-    it('debería rechazar archivo que excede tamaño máximo', async () => {
+    it('deberÃ­a rechazar archivo que excede tamaÃ±o mÃ¡ximo', async () => {
       const fileUrl = 'https://example.com/large.jpg';
       const userId = 12345;
       const messageId = 67890;
 
       // Mock de archivo muy grande
-      const largeBuffer = Buffer.alloc(15 * 1024 * 1024); // 15MB (excede el límite de 10MB)
+      const largeBuffer = Buffer.alloc(15 * 1024 * 1024); // 15MB (excede el lÃ­mite de 10MB)
       (axios as any).mockResolvedValue({ data: largeBuffer });
 
       const result = await ingestor.downloadAndStore(fileUrl, userId, messageId);
@@ -122,7 +123,7 @@ describe('DocumentIngestor', () => {
       expect(result.error).toContain('exceeds maximum size');
     });
 
-    it('debería rechazar formato no soportado', async () => {
+    it('deberÃ­a rechazar formato no soportado', async () => {
       const fileUrl = 'https://example.com/test.exe';
       const userId = 12345;
       const messageId = 67890;
@@ -137,7 +138,7 @@ describe('DocumentIngestor', () => {
       expect(result.error).toContain('Unsupported file format');
     });
 
-    it('debería manejar timeout en la descarga', async () => {
+    it('deberÃ­a manejar timeout en la descarga', async () => {
       const fileUrl = 'https://example.com/test.jpg';
       const userId = 12345;
       const messageId = 67890;
@@ -153,7 +154,7 @@ describe('DocumentIngestor', () => {
       expect(result.error).toContain('Timeout');
     });
 
-    it('debería manejar error de red genérico', async () => {
+    it('deberÃ­a manejar error de red genÃ©rico', async () => {
       const fileUrl = 'https://example.com/test.jpg';
       const userId = 12345;
       const messageId = 67890;
@@ -166,7 +167,7 @@ describe('DocumentIngestor', () => {
       expect(result.error).toContain('Error downloading file');
     });
 
-    it('debería llamar a axios con configuración correcta', async () => {
+    it('deberÃ­a llamar a axios con configuraciÃ³n correcta', async () => {
       const fileUrl = 'https://example.com/test.jpg';
       const userId = 12345;
       const messageId = 67890;
@@ -183,12 +184,12 @@ describe('DocumentIngestor', () => {
     });
   });
 
-  // Nota: storeBuffer() no existe en la implementación actual
+  // Nota: storeBuffer() no existe en la implementaciÃ³n actual
   // La funcionalidad se maneja dentro de downloadAndStore()
   // Tests removidos para coincidir con la API real
 
   describe('deleteFile', () => {
-    it('debería eliminar archivo existente', async () => {
+    it('deberÃ­a eliminar archivo existente', async () => {
       // Crear archivo de prueba directamente
       const testFilePath = path.join(testTempPath, 'test-file.jpg');
       await fs.writeFile(testFilePath, Buffer.from([0xFF, 0xD8, 0xFF, 0xE0]));
@@ -201,7 +202,7 @@ describe('DocumentIngestor', () => {
       expect(await fs.pathExists(testFilePath)).toBe(false);
     });
 
-    it('no debería generar error al eliminar archivo inexistente', async () => {
+    it('no deberÃ­a generar error al eliminar archivo inexistente', async () => {
       const fakePath = path.join(testTempPath, 'nonexistent.jpg');
 
       await expect(ingestor.deleteFile(fakePath)).resolves.not.toThrow();
@@ -209,7 +210,7 @@ describe('DocumentIngestor', () => {
   });
 
   describe('getStorageStats', () => {
-    it('debería retornar estadísticas de almacenamiento', async () => {
+    it('deberÃ­a retornar estadÃ­sticas de almacenamiento', async () => {
       // Crear algunos archivos directamente
       const buffer = Buffer.from([0xFF, 0xD8, 0xFF, 0xE0]);
       await fs.writeFile(path.join(testTempPath, 'test1.jpg'), buffer);
@@ -222,7 +223,7 @@ describe('DocumentIngestor', () => {
       expect(stats.totalSizeMB).toBeGreaterThan(0);
     });
 
-    it('debería retornar ceros para directorio vacío', async () => {
+    it('deberÃ­a retornar ceros para directorio vacÃ­o', async () => {
       // Limpiar directorio
       await fs.emptyDir(testTempPath);
 
@@ -233,11 +234,11 @@ describe('DocumentIngestor', () => {
     });
   });
 
-  // Nota: Tests de detección de tipo se realizan a través de downloadAndStore()
+  // Nota: Tests de detecciÃ³n de tipo se realizan a travÃ©s de downloadAndStore()
   // Los tests anteriores ya cubren esta funcionalidad
 
-  describe('Generación de nombres de archivo', () => {
-    it('debería generar nombres únicos en downloadAndStore', async () => {
+  describe('GeneraciÃ³n de nombres de archivo', () => {
+    it('deberÃ­a generar nombres Ãºnicos en downloadAndStore', async () => {
       const buffer = Buffer.from([0xFF, 0xD8, 0xFF, 0xE0]);
       (axios as any).mockResolvedValue({ data: buffer });
 
@@ -250,8 +251,8 @@ describe('DocumentIngestor', () => {
     });
   });
 
-  describe('Configuración personalizada', () => {
-    it('debería respetar maxFileSizeMB configurado', async () => {
+  describe('ConfiguraciÃ³n personalizada', () => {
+    it('deberÃ­a respetar maxFileSizeMB configurado', async () => {
       const smallLimitConfig = { ...testConfig, maxFileSizeMB: 1 };
       const smallIngestor = new FileDocumentIngestor(smallLimitConfig);
 
@@ -264,7 +265,7 @@ describe('DocumentIngestor', () => {
       expect(result.error).toContain('exceeds maximum size');
     });
 
-    it('debería respetar supportedFormats configurados', async () => {
+    it('deberÃ­a respetar supportedFormats configurados', async () => {
       const limitedFormatsConfig = {
         ...testConfig,
         supportedFormats: ['jpg', 'jpeg'],
@@ -282,7 +283,7 @@ describe('DocumentIngestor', () => {
   });
 
   describe('Edge Cases', () => {
-    it('debería manejar IDs de usuario/mensaje negativos', async () => {
+    it('deberÃ­a manejar IDs de usuario/mensaje negativos', async () => {
       const buffer = Buffer.from([0xFF, 0xD8, 0xFF, 0xE0]);
       (axios as any).mockResolvedValue({ data: buffer });
 
@@ -296,4 +297,5 @@ describe('DocumentIngestor', () => {
     });
   });
 });
+
 

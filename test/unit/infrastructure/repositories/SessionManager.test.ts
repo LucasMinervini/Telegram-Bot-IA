@@ -1,11 +1,11 @@
 /**
  * Test suite para SessionManager.ts
- * Valida gestión de sesiones y acumulación de facturas
+ * Valida gestiÃ³n de sesiones y acumulaciÃ³n de facturas
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { InMemoryInvoiceRepository } from '../src/infrastructure/repositories/InMemoryInvoiceRepository';
-import { Invoice } from '../src/domain/entities/Invoice.entity';
+import { InMemoryInvoiceRepository } from '@/infrastructure/repositories/InMemoryInvoiceRepository';
+import { Invoice } from '@/domain/entities/Invoice.entity';
 
 describe('SessionManager', () => {
   let sessionManager: InMemoryInvoiceRepository;
@@ -42,7 +42,7 @@ describe('SessionManager', () => {
   });
 
   describe('addInvoice', () => {
-    it('debería crear una nueva sesión al agregar la primera factura', () => {
+    it('deberÃ­a crear una nueva sesiÃ³n al agregar la primera factura', () => {
       const userId = 12345;
       const invoice = createMockInvoice('001-001');
 
@@ -53,7 +53,7 @@ describe('SessionManager', () => {
       expect(invoices[0].invoiceNumber).toBe('001-001');
     });
 
-    it('debería agregar múltiples facturas a la misma sesión', () => {
+    it('deberÃ­a agregar mÃºltiples facturas a la misma sesiÃ³n', () => {
       const userId = 12345;
       const invoice1 = createMockInvoice('001-001');
       const invoice2 = createMockInvoice('001-002');
@@ -70,7 +70,7 @@ describe('SessionManager', () => {
       expect(invoices[2].invoiceNumber).toBe('001-003');
     });
 
-    it('debería mantener sesiones separadas para diferentes usuarios', () => {
+    it('deberÃ­a mantener sesiones separadas para diferentes usuarios', () => {
       const user1 = 11111;
       const user2 = 22222;
 
@@ -83,7 +83,7 @@ describe('SessionManager', () => {
       expect(sessionManager.getInvoices(user2)[0].invoiceNumber).toBe('002-001');
     });
 
-    it('debería actualizar lastActivity al agregar factura', async () => {
+    it('deberÃ­a actualizar lastActivity al agregar factura', async () => {
       const userId = 12345;
       
       sessionManager.addInvoice(userId, createMockInvoice('001-001'));
@@ -100,7 +100,7 @@ describe('SessionManager', () => {
   });
 
   describe('getInvoices', () => {
-    it('debería retornar array vacío para usuario sin sesión', () => {
+    it('deberÃ­a retornar array vacÃ­o para usuario sin sesiÃ³n', () => {
       const userId = 99999;
       const invoices = sessionManager.getInvoices(userId);
 
@@ -108,7 +108,7 @@ describe('SessionManager', () => {
       expect(invoices).toHaveLength(0);
     });
 
-    it('debería retornar todas las facturas del usuario', () => {
+    it('deberÃ­a retornar todas las facturas del usuario', () => {
       const userId = 12345;
       
       sessionManager.addInvoice(userId, createMockInvoice('001-001', 100));
@@ -123,7 +123,7 @@ describe('SessionManager', () => {
       expect(invoices[2].totalAmount).toBe(300);
     });
 
-    it('debería retornar copias de las facturas', () => {
+    it('deberÃ­a retornar copias de las facturas', () => {
       const userId = 12345;
       const original = createMockInvoice('001-001', 1000);
       
@@ -138,12 +138,12 @@ describe('SessionManager', () => {
   });
 
   describe('getInvoiceCount', () => {
-    it('debería retornar 0 para usuario sin sesión', () => {
+    it('deberÃ­a retornar 0 para usuario sin sesiÃ³n', () => {
       const count = sessionManager.getInvoiceCount(99999);
       expect(count).toBe(0);
     });
 
-    it('debería retornar el número correcto de facturas', () => {
+    it('deberÃ­a retornar el nÃºmero correcto de facturas', () => {
       const userId = 12345;
       
       expect(sessionManager.getInvoiceCount(userId)).toBe(0);
@@ -160,7 +160,7 @@ describe('SessionManager', () => {
   });
 
   describe('clearInvoices', () => {
-    it('debería limpiar todas las facturas de un usuario', () => {
+    it('deberÃ­a limpiar todas las facturas de un usuario', () => {
       const userId = 12345;
       
       sessionManager.addInvoice(userId, createMockInvoice('001-001'));
@@ -173,7 +173,7 @@ describe('SessionManager', () => {
       expect(sessionManager.getInvoices(userId)).toEqual([]);
     });
 
-    it('debería actualizar lastActivity al limpiar', async () => {
+    it('deberÃ­a actualizar lastActivity al limpiar', async () => {
       const userId = 12345;
       
       sessionManager.addInvoice(userId, createMockInvoice('001-001'));
@@ -188,13 +188,13 @@ describe('SessionManager', () => {
       expect(time2).toBeGreaterThan(time1!);
     });
 
-    it('no debería generar error al limpiar sesión inexistente', () => {
+    it('no deberÃ­a generar error al limpiar sesiÃ³n inexistente', () => {
       expect(() => {
         sessionManager.clearInvoices(99999);
       }).not.toThrow();
     });
 
-    it('debería mantener la sesión existente después de limpiar', () => {
+    it('deberÃ­a mantener la sesiÃ³n existente despuÃ©s de limpiar', () => {
       const userId = 12345;
       
       sessionManager.addInvoice(userId, createMockInvoice('001-001'));
@@ -207,7 +207,7 @@ describe('SessionManager', () => {
   });
 
   describe('deleteSession', () => {
-    it('debería eliminar completamente la sesión de un usuario', () => {
+    it('deberÃ­a eliminar completamente la sesiÃ³n de un usuario', () => {
       const userId = 12345;
       
       sessionManager.addInvoice(userId, createMockInvoice('001-001'));
@@ -219,7 +219,7 @@ describe('SessionManager', () => {
       expect(sessionManager.hasSession(userId)).toBe(false);
     });
 
-    it('no debería generar error al eliminar sesión inexistente', () => {
+    it('no deberÃ­a generar error al eliminar sesiÃ³n inexistente', () => {
       expect(() => {
         sessionManager.deleteSession(99999);
       }).not.toThrow();
@@ -227,11 +227,11 @@ describe('SessionManager', () => {
   });
 
   describe('hasSession', () => {
-    it('debería retornar false para usuario sin sesión', () => {
+    it('deberÃ­a retornar false para usuario sin sesiÃ³n', () => {
       expect(sessionManager.hasSession(99999)).toBe(false);
     });
 
-    it('debería retornar true para sesión vacía', () => {
+    it('deberÃ­a retornar true para sesiÃ³n vacÃ­a', () => {
       const userId = 12345;
       
       sessionManager.addInvoice(userId, createMockInvoice('001-001'));
@@ -240,7 +240,7 @@ describe('SessionManager', () => {
       expect(sessionManager.hasSession(userId)).toBe(true);
     });
 
-    it('debería retornar true cuando hay facturas', () => {
+    it('deberÃ­a retornar true cuando hay facturas', () => {
       const userId = 12345;
       
       sessionManager.addInvoice(userId, createMockInvoice('001-001'));
@@ -250,7 +250,7 @@ describe('SessionManager', () => {
   });
 
   describe('getActiveSessionCount', () => {
-    it('debería retornar el número correcto de sesiones activas', () => {
+    it('deberÃ­a retornar el nÃºmero correcto de sesiones activas', () => {
       sessionManager.addInvoice(11111, createMockInvoice('001-001'));
       sessionManager.addInvoice(11111, createMockInvoice('001-002'));
       sessionManager.addInvoice(22222, createMockInvoice('002-001'));
@@ -263,13 +263,13 @@ describe('SessionManager', () => {
       expect(count).toBe(3);
     });
 
-    it('debería retornar cero cuando no hay sesiones', () => {
+    it('deberÃ­a retornar cero cuando no hay sesiones', () => {
       const count = sessionManager.getActiveSessionCount();
 
       expect(count).toBe(0);
     });
 
-    it('debería mantener el conteo después de limpiar sesión', () => {
+    it('deberÃ­a mantener el conteo despuÃ©s de limpiar sesiÃ³n', () => {
       const userId = 12345;
       
       sessionManager.addInvoice(userId, createMockInvoice('001-001'));
@@ -280,17 +280,17 @@ describe('SessionManager', () => {
       
       sessionManager.clearInvoices(userId);
       count = sessionManager.getActiveSessionCount();
-      expect(count).toBe(1); // Sesión sigue existiendo
+      expect(count).toBe(1); // SesiÃ³n sigue existiendo
     });
   });
 
   describe('getSession', () => {
-    it('debería retornar undefined para usuario sin sesión', () => {
+    it('deberÃ­a retornar undefined para usuario sin sesiÃ³n', () => {
       const session = sessionManager.getSession(99999);
       expect(session).toBeUndefined();
     });
 
-    it('debería retornar información correcta de la sesión', () => {
+    it('deberÃ­a retornar informaciÃ³n correcta de la sesiÃ³n', () => {
       const userId = 12345;
       
       sessionManager.addInvoice(userId, createMockInvoice('001-001'));
@@ -303,7 +303,7 @@ describe('SessionManager', () => {
       expect(session?.lastActivity).toBeInstanceOf(Date);
     });
 
-    it('debería reflejar cambios en el conteo de facturas', () => {
+    it('deberÃ­a reflejar cambios en el conteo de facturas', () => {
       const userId = 12345;
       
       sessionManager.addInvoice(userId, createMockInvoice('001-001'));
@@ -326,7 +326,7 @@ describe('SessionManager', () => {
       vi.useRealTimers();
     });
 
-    it('debería limpiar sesiones expiradas después del timeout', () => {
+    it('deberÃ­a limpiar sesiones expiradas despuÃ©s del timeout', () => {
       // Crear SessionManager con 1 minuto de timeout
       const shortTimeoutManager = new InMemoryInvoiceRepository(1);
       const userId = 12345;
@@ -334,18 +334,18 @@ describe('SessionManager', () => {
       shortTimeoutManager.addInvoice(userId, createMockInvoice('001-001'));
       expect(shortTimeoutManager.hasSession(userId)).toBe(true);
 
-      // Avanzar 2 minutos (más que el timeout)
+      // Avanzar 2 minutos (mÃ¡s que el timeout)
       vi.advanceTimersByTime(2 * 60 * 1000);
 
       // Triggear cleanup manualmente
       const cleaned = shortTimeoutManager.cleanExpiredSessions();
 
-      // La sesión debería estar eliminada
+      // La sesiÃ³n deberÃ­a estar eliminada
       expect(cleaned).toBeGreaterThan(0);
       expect(shortTimeoutManager.getSession(userId)).toBeUndefined();
     });
 
-    it('no debería limpiar sesiones que siguen activas', () => {
+    it('no deberÃ­a limpiar sesiones que siguen activas', () => {
       const shortTimeoutManager = new InMemoryInvoiceRepository(5); // 5 minutos
       const userId = 12345;
 
@@ -360,8 +360,8 @@ describe('SessionManager', () => {
       // Avanzar otros 3 minutos
       vi.advanceTimersByTime(3 * 60 * 1000);
 
-      // Total: 6 minutos, pero lastActivity se actualizó a los 3 minutos
-      // Así que solo han pasado 3 minutos desde la última actividad
+      // Total: 6 minutos, pero lastActivity se actualizÃ³ a los 3 minutos
+      // AsÃ­ que solo han pasado 3 minutos desde la Ãºltima actividad
       const cleaned = shortTimeoutManager.cleanExpiredSessions();
       expect(cleaned).toBe(0);
       expect(shortTimeoutManager.hasSession(userId)).toBe(true);
@@ -369,7 +369,7 @@ describe('SessionManager', () => {
   });
 
   describe('Edge Cases', () => {
-    it('debería manejar múltiples operaciones en la misma sesión', () => {
+    it('deberÃ­a manejar mÃºltiples operaciones en la misma sesiÃ³n', () => {
       const userId = 12345;
 
       sessionManager.addInvoice(userId, createMockInvoice('001-001'));
@@ -386,7 +386,7 @@ describe('SessionManager', () => {
       expect(sessionManager.getSession(userId)).toBeUndefined();
     });
 
-    it('debería manejar IDs de usuario muy grandes', () => {
+    it('deberÃ­a manejar IDs de usuario muy grandes', () => {
       const userId = Number.MAX_SAFE_INTEGER;
 
       sessionManager.addInvoice(userId, createMockInvoice('001-001'));

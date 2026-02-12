@@ -5,8 +5,8 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { InMemoryInvoiceRepository } from '../src/infrastructure/repositories/InMemoryInvoiceRepository';
-import { Invoice } from '../src/domain/entities/Invoice.entity';
+import { InMemoryInvoiceRepository } from '@/infrastructure/repositories/InMemoryInvoiceRepository';
+import { Invoice } from '@/domain/entities/Invoice.entity';
 
 describe('InMemoryInvoiceRepository - Extended Tests', () => {
   let repository: InMemoryInvoiceRepository;

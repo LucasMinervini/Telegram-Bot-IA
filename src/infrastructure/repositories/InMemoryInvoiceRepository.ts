@@ -14,7 +14,7 @@ import { Invoice } from '../../domain/entities/Invoice.entity';
 export class InMemoryInvoiceRepository implements IInvoiceRepository {
   private sessions: Map<number, ISession>;
   private sessionTimeoutMs: number;
-  private cleanupInterval: NodeJS.Timeout | null;
+  private cleanupInterval: ReturnType<typeof setInterval> | null;
 
   constructor(sessionTimeoutMinutes: number = 30) {
     this.sessions = new Map();

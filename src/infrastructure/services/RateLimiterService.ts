@@ -5,18 +5,11 @@
  * Follows Clean Architecture - Infrastructure Layer
  */
 
-export interface IRateLimitConfig {
-  maxRequestsPerMinute: number;
-  maxRequestsPerHour: number;
-  windowSizeMs: number;
-}
-
-export interface IRateLimitResult {
-  allowed: boolean;
-  remainingRequests: number;
-  resetTime: Date;
-  retryAfterSeconds?: number;
-}
+import {
+  IRateLimiterService,
+  IRateLimitConfig,
+  IRateLimitResult,
+} from '../../domain/interfaces/IRateLimiterService';
 
 /**
  * Rate Limiter Service
@@ -28,10 +21,10 @@ export interface IRateLimitResult {
  * - Automatic cleanup of old entries
  * - Graceful degradation
  */
-export class RateLimiterService {
+export class RateLimiterService implements IRateLimiterService {
   private userRequests: Map<number, { minute: number[]; hour: number[] }>;
   private config: IRateLimitConfig;
-  private cleanupInterval: NodeJS.Timeout | null = null;
+  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
   private enabled: boolean;
 
   constructor(config?: Partial<IRateLimitConfig>) {
