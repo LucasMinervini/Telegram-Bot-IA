@@ -10,14 +10,19 @@ import { IDocumentIngestor } from '../../domain/interfaces/IDocumentIngestor';
 import { IInvoiceRepository } from '../../domain/interfaces/IInvoiceRepository';
 import { IExcelGenerator } from '../../domain/interfaces/IExcelGenerator';
 import { ILogger } from '../../domain/interfaces/ILogger';
+import { IArchiveExtractor } from '../../domain/interfaces/IArchiveExtractor';
 
+import * as path from 'path';
 import { OpenAIVisionProcessor } from '../services/OpenAIVisionProcessor';
+import { AnthropicVisionProcessor } from '../services/AnthropicVisionProcessor';
 import { FileDocumentIngestor } from '../services/FileDocumentIngestor';
+import { ZipArchiveExtractor } from '../services/ZipArchiveExtractor';
 import { InMemoryInvoiceRepository } from '../repositories/InMemoryInvoiceRepository';
 import { ExcelJSGenerator } from '../services/ExcelJSGenerator';
 import { ConsoleLogger } from '../services/ConsoleLogger';
 
 import { ProcessInvoiceUseCase } from '../../application/use-cases/ProcessInvoiceUseCase';
+import { ProcessArchiveUseCase } from '../../application/use-cases/ProcessArchiveUseCase';
 import { GenerateExcelUseCase } from '../../application/use-cases/GenerateExcelUseCase';
 import { ManageSessionUseCase } from '../../application/use-cases/ManageSessionUseCase';
 
@@ -35,6 +40,8 @@ export class DIContainer {
   private _auditLogger: ILogger | null = null;
   private _visionProcessor: IVisionProcessor | null = null;
   private _documentIngestor: IDocumentIngestor | null = null;
+  private _archiveIngestor: IDocumentIngestor | null = null;
+  private _archiveExtractor: IArchiveExtractor | null = null;
   private _invoiceRepository: IInvoiceRepository | null = null;
   private _excelGenerator: IExcelGenerator | null = null;
   private _rateLimiter: RateLimiterService | null = null;
@@ -42,6 +49,7 @@ export class DIContainer {
 
   // Application Layer
   private _processInvoiceUseCase: ProcessInvoiceUseCase | null = null;
+  private _processArchiveUseCase: ProcessArchiveUseCase | null = null;
   private _generateExcelUseCase: GenerateExcelUseCase | null = null;
   private _manageSessionUseCase: ManageSessionUseCase | null = null;
 
@@ -86,7 +94,13 @@ export class DIContainer {
 
   get visionProcessor(): IVisionProcessor {
     if (!this._visionProcessor) {
-      this._visionProcessor = OpenAIVisionProcessor.fromEnv();
+      const provider = (process.env.VISION_PROVIDER ?? 'anthropic').toLowerCase();
+      if (provider === 'openai') {
+        this._visionProcessor = OpenAIVisionProcessor.fromEnv(this.logger);
+      } else {
+        this._visionProcessor = AnthropicVisionProcessor.fromEnv(this.logger);
+      }
+      this.logger.info(`[DI] VisionProcessor: ${this._visionProcessor.getModelName()}`);
     }
     return this._visionProcessor;
   }
@@ -96,6 +110,29 @@ export class DIContainer {
       this._documentIngestor = FileDocumentIngestor.fromEnv();
     }
     return this._documentIngestor;
+  }
+
+  /**
+   * Dedicated ingestor for archives: only accepts ZIP content (magic bytes)
+   * and allows a larger size than single documents (Telegram Bot API caps downloads at 20 MB)
+   */
+  get archiveIngestor(): IDocumentIngestor {
+    if (!this._archiveIngestor) {
+      this._archiveIngestor = new FileDocumentIngestor({
+        tempStoragePath: path.resolve(process.env.TEMP_STORAGE_PATH || './temp'),
+        maxFileSizeMB: parseInt(process.env.ARCHIVE_MAX_SIZE_MB || '20'),
+        supportedFormats: ['zip'],
+        retentionHours: parseInt(process.env.IMAGE_RETENTION_HOURS || '0'),
+      });
+    }
+    return this._archiveIngestor;
+  }
+
+  get archiveExtractor(): IArchiveExtractor {
+    if (!this._archiveExtractor) {
+      this._archiveExtractor = ZipArchiveExtractor.fromEnv(this.logger);
+    }
+    return this._archiveExtractor;
   }
 
   get invoiceRepository(): IInvoiceRepository {
@@ -130,6 +167,21 @@ export class DIContainer {
       );
     }
     return this._processInvoiceUseCase;
+  }
+
+  get processArchiveUseCase(): ProcessArchiveUseCase {
+    if (!this._processArchiveUseCase) {
+      this._processArchiveUseCase = new ProcessArchiveUseCase(
+        this.archiveIngestor,
+        this.archiveExtractor,
+        this.visionProcessor,
+        this.invoiceRepository,
+        this.logger,
+        parseInt(process.env.IMAGE_RETENTION_HOURS || '0'),
+        parseInt(process.env.ARCHIVE_PROCESSING_CONCURRENCY || '3')
+      );
+    }
+    return this._processArchiveUseCase;
   }
 
   get generateExcelUseCase(): GenerateExcelUseCase {
@@ -180,11 +232,14 @@ export class DIContainer {
     this._auditLogger = null;
     this._visionProcessor = null;
     this._documentIngestor = null;
+    this._archiveIngestor = null;
+    this._archiveExtractor = null;
     this._invoiceRepository = null;
     this._excelGenerator = null;
     this._rateLimiter = null;
     this._authService = null;
     this._processInvoiceUseCase = null;
+    this._processArchiveUseCase = null;
     this._generateExcelUseCase = null;
     this._manageSessionUseCase = null;
   }

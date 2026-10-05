@@ -10,6 +10,7 @@ import { message } from 'telegraf/filters';
 import { setImmediate as scheduleImmediate } from 'node:timers';
 
 import { ProcessInvoiceUseCase } from '../application/use-cases/ProcessInvoiceUseCase';
+import { ProcessArchiveUseCase } from '../application/use-cases/ProcessArchiveUseCase';
 import { GenerateExcelUseCase } from '../application/use-cases/GenerateExcelUseCase';
 import { ManageSessionUseCase } from '../application/use-cases/ManageSessionUseCase';
 import { IDocumentIngestor } from '../domain/interfaces/IDocumentIngestor';
@@ -40,7 +41,8 @@ export class TelegramBotController {
     private logger: ILogger,
     private auditLogger: ILogger,
     private rateLimiter: IRateLimiterService,
-    private authService: IAuthenticationService
+    private authService: IAuthenticationService,
+    private processArchiveUseCase?: ProcessArchiveUseCase
   ) {
     this.bot = new Telegraf(token);
     this.controlMessages = new Map();
@@ -141,7 +143,7 @@ export class TelegramBotController {
       }
     });
 
-    this.bot.command('facturas', async (ctx) => {
+    this.bot.command('comprobantes', async (ctx) => {
       if (!ctx.from) return;
       
       const count = this.manageSessionUseCase.getInvoiceCount(ctx.from.id);
@@ -176,7 +178,7 @@ export class TelegramBotController {
       });
       
       if (result.clearedCount === 0) {
-        ctx.reply('✅ No hay facturas para limpiar.');
+        ctx.reply('✅ No hay comprobantes para limpiar.');
         return;
       }
 
@@ -198,8 +200,10 @@ export class TelegramBotController {
     });
 
     this.bot.on(message('text'), (ctx) => {
+      // In groups the bot may see every message: only hint in private chats
+      if (ctx.chat.type !== 'private') return;
       ctx.reply(
-        '📸 Por favor, envíame una imagen de un comprobante o factura.\n\n' +
+        '📸 Por favor, envíame una imagen de un comprobante o un ZIP con varios.\n\n' +
         'Usa /help para más información.',
         { parse_mode: 'Markdown' }
       );
@@ -306,7 +310,9 @@ export class TelegramBotController {
           ctx.chat.id,
           processingMsg.message_id,
           undefined,
-          MessageFormatter.formatError(result.error || 'Unknown error'),
+          result.errorCode === 'PROVIDER_UNAVAILABLE'
+            ? MessageFormatter.providerUnavailableMessage()
+            : MessageFormatter.formatError(result.error || 'Unknown error'),
           { parse_mode: 'Markdown' }
         );
 
@@ -336,6 +342,12 @@ export class TelegramBotController {
     if (!ctx.from || !ctx.chat) return;
     
     const document = ctx.message.document;
+
+    if (this.processArchiveUseCase?.isArchive(document.file_name || '')) {
+      await this.handleArchiveMessage(ctx, this.processArchiveUseCase);
+      return;
+    }
+
     const supportedFormats = (process.env.SUPPORTED_FORMATS || 'jpg,jpeg,png,gif,webp,bmp,tiff,pdf,docx,doc,xlsx,xls,pptx,ppt').split(',');
     const fileExtension = document.file_name?.split('.').pop()?.toLowerCase();
 
@@ -443,7 +455,9 @@ export class TelegramBotController {
           ctx.chat.id,
           processingMsg.message_id,
           undefined,
-          MessageFormatter.formatError(result.error || 'Unknown error'),
+          result.errorCode === 'PROVIDER_UNAVAILABLE'
+            ? MessageFormatter.providerUnavailableMessage()
+            : MessageFormatter.formatError(result.error || 'Unknown error'),
           { parse_mode: 'Markdown' }
         );
 
@@ -461,6 +475,156 @@ export class TelegramBotController {
 
     } catch (error: any) {
       this.logger.error('Error in handleDocumentMessage:', error);
+      ctx.reply(MessageFormatter.formatError(error.message), { parse_mode: 'Markdown' });
+    }
+  }
+
+  // ========================================
+  // Archive Handler (ZIP with several receipts)
+  // ========================================
+
+  private async handleArchiveMessage(
+    ctx: Context & { message: any },
+    processArchiveUseCase: ProcessArchiveUseCase
+  ): Promise<void> {
+    if (!ctx.from || !ctx.chat) return;
+
+    const document = ctx.message.document;
+    const archiveName: string = document.file_name || 'archivo.zip';
+    const maxSizeMB = parseInt(process.env.ARCHIVE_MAX_SIZE_MB || '20');
+    const fileSizeMB = (document.file_size || 0) / (1024 * 1024);
+
+    if (fileSizeMB > maxSizeMB) {
+      await ctx.reply(MessageFormatter.archiveTooLargeMessage(maxSizeMB, fileSizeMB));
+      return;
+    }
+
+    const userId = ctx.from.id;
+    const chatId = ctx.chat.id;
+    const messageId = ctx.message.message_id;
+
+    try {
+      const processingMsg = await ctx.reply('📦 Descomprimiendo archivo...');
+
+      const file = await ctx.telegram.getFile(document.file_id);
+
+      // Validate file_path to prevent path traversal
+      if (!file.file_path || file.file_path.includes('..') || file.file_path.includes('/') && !file.file_path.startsWith('photos/') && !file.file_path.startsWith('documents/')) {
+        this.logger.warn(`Invalid file_path detected: ${file.file_path}`);
+        await ctx.reply('❌ Error: Archivo inválido. Por favor, intenta nuevamente.');
+        return;
+      }
+
+      const fileUrl = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${file.file_path}`;
+
+      // Audit log: Archive upload started
+      this.auditLogger.audit('ARCHIVE_UPLOAD_STARTED', userId, {
+        fileName: archiveName,
+        fileSizeMB: fileSizeMB.toFixed(2),
+        fileId: document.file_id,
+        messageId,
+        timestamp: new Date().toISOString(),
+      });
+
+      const result = await processArchiveUseCase.execute({
+        fileUrl,
+        userId,
+        messageId,
+        detail: 'auto',
+        onProgress: (processed, total) =>
+          ctx.telegram
+            .editMessageText(chatId, processingMsg.message_id, undefined, MessageFormatter.archiveProgressMessage(processed, total))
+            .then(() => undefined),
+      });
+
+      // Audit log: one record per document for non-repudiation
+      result.items.forEach((item) => {
+        this.auditLogger.audit(item.success ? 'FILE_PROCESSED_SUCCESS' : 'FILE_PROCESSED_FAILED', userId, {
+          fileType: 'archive_entry',
+          archiveName,
+          fileName: item.fileName,
+          messageId,
+          invoiceNumber: item.invoice?.invoiceNumber,
+          totalAmount: item.invoice?.totalAmount,
+          currency: item.invoice?.currency,
+          error: item.error,
+          timestamp: new Date().toISOString(),
+        });
+      });
+
+      this.auditLogger.audit(result.success ? 'ARCHIVE_PROCESSED_SUCCESS' : 'ARCHIVE_PROCESSED_FAILED', userId, {
+        fileName: archiveName,
+        fileId: document.file_id,
+        messageId,
+        processedCount: result.processedCount,
+        failedCount: result.failedCount,
+        skippedCount: result.skipped.length,
+        totalInvoices: result.totalInvoices,
+        error: result.error,
+        timestamp: new Date().toISOString(),
+      });
+
+      if (result.errorCode === 'PROVIDER_UNAVAILABLE') {
+        this.auditLogger.audit('AI_PROVIDER_UNAVAILABLE', userId, {
+          source: 'archive',
+          fileName: archiveName,
+          processedCount: result.processedCount,
+          timestamp: new Date().toISOString(),
+        });
+        await ctx.telegram.editMessageText(
+          chatId,
+          processingMsg.message_id,
+          undefined,
+          MessageFormatter.providerUnavailableMessage(result.processedCount)
+        );
+        if (result.processedCount > 0) {
+          scheduleImmediate(() => {
+            this.updateControlPanel(ctx, userId, result.totalInvoices)
+              .catch((err) => this.logger.warn(`Control panel update failed: ${err.message}`));
+          });
+        }
+        return;
+      }
+
+      if (result.items.length === 0) {
+        const skippedDetail = result.skipped
+          .slice(0, 10)
+          .map((entry) => `• ${entry.originalName}: ${entry.reason}`)
+          .join('\n');
+        await ctx.telegram.editMessageText(
+          chatId,
+          processingMsg.message_id,
+          undefined,
+          `❌ ${result.error || 'No se pudo procesar el archivo comprimido'}` + (skippedDetail ? `\n\n${skippedDetail}` : '')
+        );
+        return;
+      }
+
+      const [firstChunk, ...otherChunks] = MessageFormatter.archiveResultMessages(archiveName, result);
+      await ctx.telegram.editMessageText(chatId, processingMsg.message_id, undefined, firstChunk, {
+        parse_mode: 'Markdown',
+      });
+      for (const chunk of otherChunks) {
+        await ctx.reply(chunk, { parse_mode: 'Markdown' });
+      }
+
+      if (result.processedCount > 0) {
+        scheduleImmediate(() => {
+          this.preGenerateExcel(userId, result.totalInvoices)
+            .catch((err) => this.logger.warn(`Excel pre-generation failed: ${err.message}`));
+        });
+
+        scheduleImmediate(() => {
+          this.updateControlPanel(ctx, userId, result.totalInvoices)
+            .catch((err) => this.logger.warn(`Control panel update failed: ${err.message}`));
+        });
+      }
+
+      this.logger.success(
+        `Archive processed for user ${userId}: ${result.processedCount}/${result.items.length}. Total: ${result.totalInvoices}`
+      );
+    } catch (error: any) {
+      this.logger.error('Error in handleArchiveMessage:', error);
       ctx.reply(MessageFormatter.formatError(error.message), { parse_mode: 'Markdown' });
     }
   }
@@ -514,7 +678,7 @@ export class TelegramBotController {
         if (cached.invoiceCount === currentInvoices) {
           // Cache hit! Send immediately
           const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
-          const filename = `facturas_${userId}_${timestamp}.xlsx`;
+          const filename = `comprobantes_${userId}_${timestamp}.xlsx`;
 
           await ctx.replyWithDocument(
             {
@@ -618,7 +782,7 @@ export class TelegramBotController {
     
     if (clearResult.clearedCount > 0) {
       await ctx.reply(
-        `✅ Sesión limpiada automáticamente: ${clearResult.clearedCount} factura(s) eliminadas.\n\n` +
+        `✅ Sesión limpiada automáticamente: ${clearResult.clearedCount} comprobante(s) eliminado(s).\n\n` +
         `Puedes empezar a enviar nuevos comprobantes. 🚀`,
         { parse_mode: 'Markdown' }
       );
@@ -651,7 +815,7 @@ export class TelegramBotController {
     });
 
     if (result.clearedCount === 0) {
-      await ctx.reply('✅ No hay facturas para limpiar.');
+      await ctx.reply('✅ No hay comprobantes para limpiar.');
       return;
     }
 

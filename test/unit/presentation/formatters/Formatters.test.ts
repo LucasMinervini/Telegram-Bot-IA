@@ -85,7 +85,7 @@ describe('InvoiceFormatter (Unit Tests)', () => {
       const invoice = createTestInvoice();
       const formatted = InvoiceFormatter.toDetailedSummary(invoice);
 
-      expect(formatted).toContain('**Factura Procesada**');
+      expect(formatted).toContain('**Comprobante Procesado**');
       expect(formatted).toContain('001-00001234');
       expect(formatted).toContain('03/11/2025');
       expect(formatted).toContain('Empresa Test SA');
@@ -141,8 +141,8 @@ describe('InvoiceFormatter (Unit Tests)', () => {
         vendorSummary
       );
 
-      expect(formatted).toContain('**Resumen de Facturas**');
-      expect(formatted).toContain('Total de facturas: 5');
+      expect(formatted).toContain('**Resumen de Comprobantes**');
+      expect(formatted).toContain('Total de comprobantes: 5');
       expect(formatted).toContain('15.750,50');
       expect(formatted).toContain('ARS');
     });
@@ -186,7 +186,7 @@ describe('MessageFormatter (Unit Tests)', () => {
     it('deberÃƒÂ­a incluir informaciÃƒÂ³n sobre comandos', () => {
       const formatted = MessageFormatter.welcomeMessage();
       expect(formatted).toContain('/help');
-      expect(formatted).toContain('/facturas');
+      expect(formatted).toContain('/comprobantes');
     });
   });
 
@@ -259,7 +259,7 @@ describe('MessageFormatter (Unit Tests)', () => {
 
     it('deberÃƒÂ­a incluir emoji apropiado', () => {
       const formatted = MessageFormatter.noInvoicesMessage();
-      expect(formatted).toContain('No tienes facturas acumuladas');
+      expect(formatted).toContain('No tienes comprobantes acumulados');
     });
   });
 

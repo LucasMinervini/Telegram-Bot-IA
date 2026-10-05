@@ -37,7 +37,7 @@ export class InvoiceFormatter {
    * Format invoice as detailed summary
    */
   static toDetailedSummary(invoice: Invoice): string {
-    let summary = `📄 **Factura Procesada**\n\n`;
+    let summary = `📄 **Comprobante Procesado**\n\n`;
     summary += `**Número:** ${invoice.invoiceNumber}\n`;
     summary += `**Fecha:** ${invoice.getFormattedDate()}\n`;
     
@@ -91,8 +91,8 @@ export class InvoiceFormatter {
     currencies: string[],
     vendorSummary: Map<string, number>
   ): string {
-    let summary = `📊 **Resumen de Facturas**\n\n`;
-    summary += `• Total de facturas: ${invoiceCount}\n`;
+    let summary = `📊 **Resumen de Comprobantes**\n\n`;
+    summary += `• Total de comprobantes: ${invoiceCount}\n`;
     summary += `• Monto total: $${totalAmount.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
     summary += `• Moneda(s): ${currencies.join(', ')}\n\n`;
 
@@ -103,7 +103,7 @@ export class InvoiceFormatter {
       });
     }
 
-    summary += `\n💡 Usa el botón "Descargar Excel" para obtener todas las facturas en un archivo.`;
+    summary += `\n💡 Usa el botón "Descargar Excel" para obtener todos los comprobantes en un archivo.`;
 
     return summary;
   }

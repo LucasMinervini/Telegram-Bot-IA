@@ -9,6 +9,7 @@ import fs from 'fs-extra';
 import * as path from 'path';
 import axios from 'axios';
 import { IDocumentIngestor, IStorageResult, IStorageStats } from '../../domain/interfaces/IDocumentIngestor';
+import { FileSignatureDetector } from './FileSignatureDetector';
 
 export interface IDocumentIngestorConfig {
   tempStoragePath: string;
@@ -24,7 +25,10 @@ export interface IDocumentIngestorConfig {
 export class FileDocumentIngestor implements IDocumentIngestor {
   private config: IDocumentIngestorConfig;
 
-  constructor(config: IDocumentIngestorConfig) {
+  constructor(
+    config: IDocumentIngestorConfig,
+    private signatureDetector: FileSignatureDetector = new FileSignatureDetector()
+  ) {
     this.config = config;
     this.ensureTempDirectory();
   }
@@ -94,8 +98,8 @@ export class FileDocumentIngestor implements IDocumentIngestor {
       }
 
       // Validate format
-      const detectedExtension = this.detectFileExtension(response.data);
-      if (!this.isFormatSupported(detectedExtension)) {
+      const detectedExtensions = this.signatureDetector.detect(Buffer.from(response.data));
+      if (!this.isFormatSupported(detectedExtensions)) {
         return {
           success: false,
           error: `Unsupported file format. Allowed formats: ${this.config.supportedFormats.join(', ')}`,
@@ -219,62 +223,12 @@ export class FileDocumentIngestor implements IDocumentIngestor {
   }
 
   /**
-   * Detect file extension by magic bytes
+   * Check if any of the extensions detected by magic bytes is supported
    */
-  private detectFileExtension(buffer: Buffer): string {
-    if (!buffer || buffer.length < 4) return '';
-
-    // Magic bytes signatures
-    const signatures: Record<string, number[][]> = {
-      '.jpg': [[0xFF, 0xD8, 0xFF]],
-      '.jpeg': [[0xFF, 0xD8, 0xFF]],
-      '.png': [[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]],
-      '.gif': [[0x47, 0x49, 0x46, 0x38]],
-      '.webp': [[0x52, 0x49, 0x46, 0x46]],
-      '.bmp': [[0x42, 0x4D]],
-      '.tiff': [[0x49, 0x49, 0x2A, 0x00], [0x4D, 0x4D, 0x00, 0x2A]],
-      '.pdf': [[0x25, 0x50, 0x44, 0x46]],
-      '.docx': [[0x50, 0x4B, 0x03, 0x04]],
-      '.xlsx': [[0x50, 0x4B, 0x03, 0x04]],
-      '.pptx': [[0x50, 0x4B, 0x03, 0x04]],
-      '.doc': [[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]],
-      '.xls': [[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]],
-      '.ppt': [[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]],
-    };
-
-    for (const [ext, sigs] of Object.entries(signatures)) {
-      for (const sig of sigs) {
-        if (this.matchesSignature(buffer, sig)) {
-          return ext;
-        }
-      }
-    }
-
-    return '';
-  }
-
-  /**
-   * Check if buffer matches signature
-   */
-  private matchesSignature(buffer: Buffer, signature: number[]): boolean {
-    if (buffer.length < signature.length) return false;
-
-    for (let i = 0; i < signature.length; i++) {
-      if (buffer[i] !== signature[i]) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  /**
-   * Check if format is supported
-   */
-  private isFormatSupported(extension: string): boolean {
-    if (!extension) return false;
-    const ext = extension.replace('.', '').toLowerCase();
-    return this.config.supportedFormats.includes(ext);
+  private isFormatSupported(candidateExtensions: string[]): boolean {
+    return candidateExtensions.some((extension) =>
+      this.config.supportedFormats.includes(extension.replace('.', '').toLowerCase())
+    );
   }
 
   /**

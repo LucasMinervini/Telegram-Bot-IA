@@ -11,6 +11,17 @@ export interface IVendor {
   address?: string;
 }
 
+/**
+ * Who sent the money (ordenante / origen) in a transfer receipt.
+ * For collections the beneficiary is always the company itself, so the payer
+ * is what identifies each receipt.
+ */
+export interface IPayer {
+  name?: string;
+  taxId?: string; // Valid CUIT or "No figura"
+  bank?: string; // Bank or wallet the money came from (BBVA, Mercado Pago...)
+}
+
 export interface IInvoiceItem {
   description: string;
   quantity: number;
@@ -35,6 +46,7 @@ export interface IInvoiceProps {
   date: string;
   operationType?: string;
   vendor: IVendor;
+  payer?: IPayer;
   totalAmount: number;
   currency: string;
   receiverBank?: string;
@@ -70,6 +82,10 @@ export class Invoice {
 
   get vendor(): IVendor {
     return { ...this.props.vendor };
+  }
+
+  get payer(): IPayer | undefined {
+    return this.props.payer ? { ...this.props.payer } : undefined;
   }
 
   get totalAmount(): number {
@@ -145,6 +161,7 @@ export class Invoice {
     return {
       ...this.props,
       vendor: { ...this.props.vendor },
+      payer: this.props.payer ? { ...this.props.payer } : undefined,
       items: [...this.props.items],
       taxes: this.props.taxes ? { ...this.props.taxes } : undefined,
       metadata: { ...this.props.metadata },

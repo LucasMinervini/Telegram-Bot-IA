@@ -4,7 +4,12 @@
  * Orchestrates business logic without infrastructure details
  */
 
-import { IVisionProcessor, IImageProcessingOptions, IProcessingResult } from '../../domain/interfaces/IVisionProcessor';
+import {
+  IVisionProcessor,
+  IImageProcessingOptions,
+  IProcessingResult,
+  ProcessingErrorCode,
+} from '../../domain/interfaces/IVisionProcessor';
 import { IDocumentIngestor, IStorageResult } from '../../domain/interfaces/IDocumentIngestor';
 import { IInvoiceRepository } from '../../domain/interfaces/IInvoiceRepository';
 import { ILogger } from '../../domain/interfaces/ILogger';
@@ -21,6 +26,7 @@ export interface IProcessInvoiceResponse {
   success: boolean;
   invoice?: Invoice;
   error?: string;
+  errorCode?: ProcessingErrorCode;
   totalInvoices: number;
 }
 
@@ -99,6 +105,7 @@ export class ProcessInvoiceUseCase {
       return {
         success: false,
         error: processingResult.error || 'Unknown processing error',
+        errorCode: processingResult.errorCode,
         totalInvoices: this.invoiceRepository.getInvoiceCount(userId),
       };
 

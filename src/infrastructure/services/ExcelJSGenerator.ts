@@ -29,7 +29,7 @@ export class ExcelJSGenerator implements IExcelGenerator {
 
     // Create workbook and worksheet
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Facturas', {
+    const worksheet = workbook.addWorksheet('Comprobantes', {
       properties: { tabColor: { argb: 'FF0066CC' } },
     });
 
@@ -140,9 +140,17 @@ export class ExcelJSGenerator implements IExcelGenerator {
       invoice.operationType || this.extractOperationType(invoice.paymentMethod)
     );
     
-    // CUIT/CVU column: prefer CVU, then valid CUIT, then vendor name
+    const payer = invoice.payer;
+
+    // CUIT column: for collections the payer identifies the receipt (the
+    // beneficiary is always the company). Falls back to the vendor otherwise.
     let cuit = '';
-    if (invoice.vendor.cvu) {
+    if (payer) {
+      const formattedPayerCuit = this.formatCUIT(payer.taxId || '');
+      cuit = this.isValidCUITFormat(formattedPayerCuit)
+        ? formattedPayerCuit
+        : this.extractBankName(payer.name || '');
+    } else if (invoice.vendor.cvu) {
       cuit = invoice.vendor.cvu;
     } else if (invoice.vendor.taxId) {
       const formattedCuit = this.formatCUIT(invoice.vendor.taxId);
@@ -157,8 +165,9 @@ export class ExcelJSGenerator implements IExcelGenerator {
     
     const montoBruto = invoice.totalAmount;
     
-    // Banco receptor: use LLM extraction, fallback to vendor name (who is the receiver)
-    let bancoReceptor = invoice.receiverBank || '';
+    // Banco receptor: bank the payment came from when the payer is known,
+    // otherwise the LLM-extracted receiver bank with vendor name fallback
+    let bancoReceptor = payer?.bank || invoice.receiverBank || '';
     
     // Special handling for BNA and Banco Galicia: If receiverBank is empty and vendor name exists, use vendor name
     // This handles the case where these banks' transfers show "Banco: -" but the recipient name should be used
@@ -182,7 +191,7 @@ export class ExcelJSGenerator implements IExcelGenerator {
   /**
    * Sanitize value - replace undefined/empty with user-friendly message
    */
-  private sanitizeValue(value: any, fallback = 'No encontrado en la factura'): string {
+  private sanitizeValue(value: any, fallback = 'No encontrado en el comprobante'): string {
     if (value === undefined || value === null || value === '' || value === 'undefined') {
       return fallback;
     }

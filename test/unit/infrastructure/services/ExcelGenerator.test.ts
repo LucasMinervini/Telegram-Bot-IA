@@ -67,7 +67,7 @@ describe('ExcelGenerator', () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
 
-      const worksheet = workbook.getWorksheet('Facturas');
+      const worksheet = workbook.getWorksheet('Comprobantes');
       expect(worksheet).toBeDefined();
 
       // DeberÃƒÆ’Ã‚Â­a tener 1 fila de headers + 1 fila de datos
@@ -85,7 +85,7 @@ describe('ExcelGenerator', () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
 
-      const worksheet = workbook.getWorksheet('Facturas');
+      const worksheet = workbook.getWorksheet('Comprobantes');
       
       // DeberÃƒÆ’Ã‚Â­a tener 1 fila de headers + 3 filas de datos
       expect(worksheet?.rowCount).toBe(4);
@@ -98,7 +98,7 @@ describe('ExcelGenerator', () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
 
-      const worksheet = workbook.getWorksheet('Facturas');
+      const worksheet = workbook.getWorksheet('Comprobantes');
       const headerRow = worksheet?.getRow(1);
 
       expect(headerRow?.getCell(1).value).toBe('Fecha');
@@ -115,7 +115,7 @@ describe('ExcelGenerator', () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
 
-      const worksheet = workbook.getWorksheet('Facturas');
+      const worksheet = workbook.getWorksheet('Comprobantes');
       const dataRow = worksheet?.getRow(2);
 
       expect(dataRow?.getCell(1).value).toBe('03/11/2025');
@@ -136,7 +136,7 @@ describe('ExcelGenerator', () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
 
-      const worksheet = workbook.getWorksheet('Facturas');
+      const worksheet = workbook.getWorksheet('Comprobantes');
       const dataRow = worksheet?.getRow(2);
 
       expect(dataRow?.getCell(3).value).toBe('0000003100010123456789');
@@ -156,7 +156,7 @@ describe('ExcelGenerator', () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
 
-      const worksheet = workbook.getWorksheet('Facturas');
+      const worksheet = workbook.getWorksheet('Comprobantes');
       const dataRow = worksheet?.getRow(2);
 
       expect(dataRow?.getCell(3).value).toBe('30-12345678-9');
@@ -175,7 +175,7 @@ describe('ExcelGenerator', () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
 
-      const worksheet = workbook.getWorksheet('Facturas');
+      const worksheet = workbook.getWorksheet('Comprobantes');
       const dataRow = worksheet?.getRow(2);
 
       expect(String(dataRow?.getCell(3).value)).toContain('Empresa Sin Identificaci');
@@ -188,7 +188,7 @@ describe('ExcelGenerator', () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
 
-      const worksheet = workbook.getWorksheet('Facturas');
+      const worksheet = workbook.getWorksheet('Comprobantes');
       const dataRow = worksheet?.getRow(2);
 
       expect(String(dataRow?.getCell(2).value)).toContain('Dep');
@@ -215,7 +215,7 @@ describe('ExcelGenerator', () => {
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(buffer);
 
-        const worksheet = workbook.getWorksheet('Facturas');
+        const worksheet = workbook.getWorksheet('Comprobantes');
         const dataRow = worksheet?.getRow(2);
 
         expect(dataRow?.getCell(2).value).toBe(expected);
@@ -229,7 +229,7 @@ describe('ExcelGenerator', () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
 
-      const worksheet = workbook.getWorksheet('Facturas');
+      const worksheet = workbook.getWorksheet('Comprobantes');
       const dataRow = worksheet?.getRow(2);
 
       expect(dataRow?.getCell(5).value).toBe('Banco Santander');
@@ -249,7 +249,7 @@ describe('ExcelGenerator', () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
 
-      const worksheet = workbook.getWorksheet('Facturas');
+      const worksheet = workbook.getWorksheet('Comprobantes');
       const dataRow = worksheet?.getRow(2);
 
       expect(dataRow?.getCell(5).value).toBe('Banco Galicia');
@@ -262,7 +262,7 @@ describe('ExcelGenerator', () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
 
-      const worksheet = workbook.getWorksheet('Facturas');
+      const worksheet = workbook.getWorksheet('Comprobantes');
       const dataRow = worksheet?.getRow(2);
       const montoCell = dataRow?.getCell(4);
 
@@ -277,7 +277,7 @@ describe('ExcelGenerator', () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
 
-      const worksheet = workbook.getWorksheet('Facturas');
+      const worksheet = workbook.getWorksheet('Comprobantes');
       const headerRow = worksheet?.getRow(1);
       const headerCell = headerRow?.getCell(1);
 
@@ -303,7 +303,7 @@ describe('ExcelGenerator', () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
 
-      const worksheet = workbook.getWorksheet('Facturas');
+      const worksheet = workbook.getWorksheet('Comprobantes');
       const dataRow = worksheet?.getRow(2);
       const dataCell = dataRow?.getCell(1);
 
@@ -321,7 +321,7 @@ describe('ExcelGenerator', () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
 
-      const worksheet = workbook.getWorksheet('Facturas');
+      const worksheet = workbook.getWorksheet('Comprobantes');
       const dataRow = worksheet?.getRow(2);
       const dataCell = dataRow?.getCell(1);
 
@@ -340,7 +340,7 @@ describe('ExcelGenerator', () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
 
-      const worksheet = workbook.getWorksheet('Facturas');
+      const worksheet = workbook.getWorksheet('Comprobantes');
       
       // Solo deberÃƒÆ’Ã‚Â­a tener la fila de headers
       expect(worksheet?.rowCount).toBe(1);
@@ -353,7 +353,7 @@ describe('ExcelGenerator', () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
 
-      const worksheet = workbook.getWorksheet('Facturas');
+      const worksheet = workbook.getWorksheet('Comprobantes');
       const dataRow = worksheet?.getRow(2);
 
       expect(dataRow?.getCell(4).value).toBe(9999999.99);
@@ -366,7 +366,7 @@ describe('ExcelGenerator', () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
 
-      const worksheet = workbook.getWorksheet('Facturas');
+      const worksheet = workbook.getWorksheet('Comprobantes');
       const dataRow = worksheet?.getRow(2);
 
       expect(dataRow?.getCell(4).value).toBeCloseTo(1234.567, 2);
@@ -403,7 +403,7 @@ describe('ExcelGenerator', () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.readFile(testFilePath);
 
-      const worksheet = workbook.getWorksheet('Facturas');
+      const worksheet = workbook.getWorksheet('Comprobantes');
       expect(worksheet?.rowCount).toBe(3); // 1 header + 2 datos
     });
 
@@ -420,7 +420,7 @@ describe('ExcelGenerator', () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.readFile(testFilePath);
 
-      const worksheet = workbook.getWorksheet('Facturas');
+      const worksheet = workbook.getWorksheet('Comprobantes');
       expect(worksheet?.rowCount).toBe(3); // DeberÃƒÆ’Ã‚Â­a tener 2 facturas, no 1
     });
   });
@@ -440,7 +440,7 @@ describe('ExcelGenerator', () => {
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(buffer);
 
-        const worksheet = workbook.getWorksheet('Facturas');
+        const worksheet = workbook.getWorksheet('Comprobantes');
         const dataRow = worksheet?.getRow(2);
 
         expect(dataRow?.getCell(1).value).toBe(expected);
@@ -454,7 +454,7 @@ describe('ExcelGenerator', () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
 
-      const worksheet = workbook.getWorksheet('Facturas');
+      const worksheet = workbook.getWorksheet('Comprobantes');
       const dataRow = worksheet?.getRow(2);
 
       // DeberÃƒÆ’Ã‚Â­a formatear correctamente
@@ -477,7 +477,7 @@ describe('ExcelGenerator', () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
 
-      const worksheet = workbook.getWorksheet('Facturas');
+      const worksheet = workbook.getWorksheet('Comprobantes');
       const dataRow = worksheet?.getRow(2);
 
       expect(dataRow?.getCell(3).value).toBe('Empresa Test');
@@ -494,7 +494,7 @@ describe('ExcelGenerator', () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
 
-      const worksheet = workbook.getWorksheet('Facturas');
+      const worksheet = workbook.getWorksheet('Comprobantes');
       const dataRow = worksheet?.getRow(2);
 
       expect(dataRow?.getCell(4).value).toBe(0.01);
@@ -512,6 +512,40 @@ describe('ExcelGenerator', () => {
 
       expect(buffer).toBeInstanceOf(Buffer);
       expect(buffer.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Cobranzas (pagador)', () => {
+    const readFirstRow = async (invoice: Invoice) => {
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(await generator.generateExcel([invoice]));
+      const row = workbook.getWorksheet('Comprobantes')!.getRow(2);
+      return { cuit: row.getCell(3).value, banco: row.getCell(5).value };
+    };
+
+    it('usa el CUIT y el banco de quien pago', async () => {
+      const row = await readFirstRow(
+        createMockInvoice({ payer: { name: 'CHOJOA SAS', taxId: '30716397447', bank: 'BBVA' } })
+      );
+
+      expect(row.cuit).toBe('30-71639744-7');
+      expect(row.banco).toBe('BBVA');
+    });
+
+    it('usa el nombre del pagador cuando no figura su CUIT', async () => {
+      const row = await readFirstRow(
+        createMockInvoice({ payer: { name: 'DIEGO SEBASTIAN STECKLEIN', taxId: 'No figura', bank: 'Banco Provincia' } })
+      );
+
+      expect(row.cuit).toBe('Diego Sebastian Stecklein');
+      expect(row.banco).toBe('Banco Provincia');
+    });
+
+    it('mantiene el comportamiento anterior sin pagador', async () => {
+      const row = await readFirstRow(createMockInvoice());
+
+      expect(row.cuit).toBe('0000003100010123456789');
+      expect(row.banco).toBe('Banco Test');
     });
   });
 });

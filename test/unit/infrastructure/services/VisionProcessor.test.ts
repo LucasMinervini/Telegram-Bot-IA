@@ -494,7 +494,7 @@ describe('VisionProcessor', () => {
             message: {
               content: JSON.stringify({
                 invoiceNumber: '001-001',
-                date: '03/11/2025', // Formato invÃƒÂ¡lido
+                date: 'ayer', // Fecha ilegible: no se inventa la fecha de hoy
                 vendor: { name: 'Test' },
                 totalAmount: 1000,
                 currency: 'ARS',
@@ -567,7 +567,7 @@ describe('VisionProcessor', () => {
       expect(result.success).toBe(false);
     });
 
-    it('deberÃƒÂ­a rechazar factura sin items', async () => {
+    it('acepta comprobantes de transferencia sin items', async () => {
       mockOpenAI.chat.completions.create.mockResolvedValue({
         choices: [
           {
@@ -578,7 +578,7 @@ describe('VisionProcessor', () => {
                 vendor: { name: 'Test' },
                 totalAmount: 1000,
                 currency: 'ARS',
-                items: [], // Array vacÃƒÂ­o
+                items: [], // Las transferencias no tienen items
                 metadata: {
                   processedAt: new Date().toISOString(),
                   processingTimeMs: 1000,
@@ -597,7 +597,79 @@ describe('VisionProcessor', () => {
 
       const result = await processor.processInvoiceImage(options);
 
-      expect(result.success).toBe(false);
+      expect(result.success).toBe(true);
+      expect(result.invoice?.items).toHaveLength(1);
+      expect(result.invoice?.totalAmount).toBe(1000);
+    });
+
+    const mockTransferResponse = (overrides: Record<string, unknown>) => {
+      mockOpenAI.chat.completions.create.mockResolvedValue({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                invoiceNumber: '',
+                date: '29/09/2026',
+                vendor: { name: 'Sasteup Srl', taxId: '30-71728225-2', cvu: '0000155300000000010186' },
+                totalAmount: 1225239,
+                currency: 'ARS',
+                operationType: 'Transferencia',
+                items: [],
+                ...overrides,
+              }),
+            },
+          },
+        ],
+      });
+    };
+
+    const processTestImage = () =>
+      processor.processInvoiceImage({ imagePath: testImagePath, userId: 1, messageId: 1 });
+
+    it('extrae el pagador y normaliza fechas DD/MM/AAAA', async () => {
+      mockTransferResponse({ payer: { name: 'CHOJOA SAS', taxId: '30-71639744-7', bank: 'BBVA' } });
+
+      const result = await processTestImage();
+
+      expect(result.success).toBe(true);
+      expect(result.invoice?.date).toBe('2026-09-29');
+      expect(result.invoice?.payer).toEqual({ name: 'CHOJOA SAS', taxId: '30-71639744-7', bank: 'BBVA' });
+    });
+
+    it('descarta CUIT con digito verificador invalido (DNI completado con ceros)', async () => {
+      mockTransferResponse({
+        payer: { name: 'DIEGO SEBASTIAN STECKLEIN', taxId: '34-17081000-0', bank: 'Banco Provincia' },
+      });
+
+      const result = await processTestImage();
+
+      expect(result.invoice?.payer?.taxId).toBe('No figura');
+      expect(result.invoice?.payer?.name).toBe('DIEGO SEBASTIAN STECKLEIN');
+    });
+
+    it('trata "No figura" como dato desconocido en el pagador', async () => {
+      mockTransferResponse({ payer: { name: 'No figura', taxId: 'No figura', bank: 'Santander' } });
+
+      const result = await processTestImage();
+
+      expect(result.invoice?.payer).toEqual({ name: undefined, taxId: 'No figura', bank: 'Santander' });
+    });
+
+    it('descarta CBU/CVU de ceros', async () => {
+      mockTransferResponse({ vendor: { name: 'Sasteup Srl', taxId: 'No figura', cvu: '0000000000000000000000' } });
+
+      const result = await processTestImage();
+
+      expect(result.invoice?.vendor.cvu).toBeUndefined();
+    });
+
+    it('usa alta resolucion por defecto (los comprobantes pesan menos de 1MB)', async () => {
+      mockTransferResponse({});
+
+      await processTestImage();
+
+      const content = mockOpenAI.chat.completions.create.mock.calls[0][0].messages[1].content;
+      expect(content[1].image_url.detail).toBe('high');
     });
   });
 

@@ -68,6 +68,8 @@ desktop.ini
 coverage/
 .nyc_output/
 .coverage/
+test-results/
+playwright-report/
 
 # ========================================
 # Dependabot y herramientas de actualización

@@ -139,6 +139,23 @@ describe('ProcessInvoiceUseCase (Strategy Pattern)', () => {
       },
     },
     {
+      name: 'propagates provider unavailable error code',
+      arrange: (ctx) => {
+        ctx.visionProcessor.processInvoiceImage.mockResolvedValueOnce({
+          success: false,
+          error: 'Servicio de IA no disponible',
+          errorCode: 'PROVIDER_UNAVAILABLE',
+          userId: ctx.request.userId,
+          messageId: ctx.request.messageId,
+        });
+      },
+      act: (ctx) => ctx.useCase.execute(ctx.request),
+      assert: (result) => {
+        expect(result.success).toBe(false);
+        expect(result.errorCode).toBe('PROVIDER_UNAVAILABLE');
+      },
+    },
+    {
       name: 'skips temp deletion when retention hours are configured',
       arrange: (ctx) => {
         ctx.useCase = new ProcessInvoiceUseCase(

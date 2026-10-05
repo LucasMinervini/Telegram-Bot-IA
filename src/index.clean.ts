@@ -52,6 +52,7 @@ async function main() {
     logger.info(`   • Image retention: ${process.env.IMAGE_RETENTION_HOURS || '0'} hours`);
     logger.info(`   • Max file size: ${process.env.MAX_IMAGE_SIZE_MB || '10'} MB`);
     logger.info(`   • Supported formats: ${process.env.SUPPORTED_FORMATS || 'jpg,jpeg,png,pdf'}`);
+    logger.info(`   • Archives (ZIP): max ${process.env.ARCHIVE_MAX_SIZE_MB || '20'} MB, ${process.env.ARCHIVE_MAX_FILES || '30'} files`);
     logger.info(`   • Temp storage: ${process.env.TEMP_STORAGE_PATH || './temp'}`);
     logger.info(`   • Session timeout: ${process.env.SESSION_TIMEOUT_MINUTES || '30'} minutes`);
     logger.info(`   • Log level: ${process.env.LOG_LEVEL || 'info'}`);
@@ -61,6 +62,7 @@ async function main() {
     // Get use cases from DI container
     logger.info('🔧 Initializing dependency injection container...');
     const processInvoiceUseCase = container.processInvoiceUseCase;
+    const processArchiveUseCase = container.processArchiveUseCase;
     const generateExcelUseCase = container.generateExcelUseCase;
     const manageSessionUseCase = container.manageSessionUseCase;
     const documentIngestor = container.documentIngestor;
@@ -99,7 +101,8 @@ async function main() {
       botLogger,
       auditLogger,
       rateLimiter,
-      authService
+      authService,
+      processArchiveUseCase
     );
 
     logger.info('🚀 Launching bot...');
